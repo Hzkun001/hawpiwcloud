@@ -1,9 +1,11 @@
 <?php
+
 declare(strict_types=1);
 
 session_start();
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+$appMaxFileSize = 2 * 1024 * 1024;
 
 function redirectWithStatus(string $status): void
 {
@@ -23,6 +25,20 @@ function iniSizeToBytes(string $value): int
         'k' => $number * 1024,
         default => (int)$value,
     };
+}
+
+function effectiveServerUploadLimitBytes(): int
+{
+    $uploadMaxSize = iniSizeToBytes((string) ini_get('upload_max_filesize'));
+    $postMaxSize = iniSizeToBytes((string) ini_get('post_max_size'));
+
+    $limits = array_filter([$uploadMaxSize, $postMaxSize], static fn(int $bytes): bool => $bytes > 0);
+
+    if ($limits === []) {
+        return 0;
+    }
+
+    return min($limits);
 }
 
 function requestBodyExceededPostMaxSize(): bool
@@ -69,7 +85,7 @@ if (!isValidCsrfToken($_POST['csrf_token'] ?? null)) {
 }
 
 if (requestBodyExceededPostMaxSize()) {
-    redirectWithStatus('error_size');
+    redirectWithStatus('error_server_limit');
 }
 
 if (!isset($_FILES['fileToUpload'])) {
@@ -81,15 +97,20 @@ $file = $_FILES['fileToUpload'];
 // Cek error upload
 if ($file['error'] !== UPLOAD_ERR_OK) {
     redirectWithStatus(match ($file['error']) {
-        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'error_size',
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'error_server_limit',
         UPLOAD_ERR_PARTIAL => 'error_partial',
         UPLOAD_ERR_NO_FILE => 'error_nofile',
         default => 'error',
     });
 }
 
-// Batas ukuran file: 20 MB
-$maxFileSize = 20 * 1024 * 1024;
+// Batas ukuran file: 2 MB
+$maxFileSize = $appMaxFileSize;
+$effectiveServerLimit = effectiveServerUploadLimitBytes();
+if ($effectiveServerLimit > 0 && (int) $file['size'] > $effectiveServerLimit) {
+    redirectWithStatus('error_server_limit');
+}
+
 if ((int)$file['size'] > $maxFileSize) {
     redirectWithStatus('error_size');
 }

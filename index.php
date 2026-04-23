@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 session_start();
@@ -10,6 +11,27 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_
 $csrfToken = $_SESSION['csrf_token'];
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+
+function isPreviewableImage(string $filePath): bool
+{
+    if (!is_file($filePath)) {
+        return false;
+    }
+
+    if (!function_exists('finfo_open')) {
+        return (bool) preg_match('/\.(jpe?g|png|gif|webp|bmp|avif|svg)$/i', $filePath);
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo === false) {
+        return (bool) preg_match('/\.(jpe?g|png|gif|webp|bmp|avif|svg)$/i', $filePath);
+    }
+
+    $mimeType = finfo_file($finfo, $filePath);
+    finfo_close($finfo);
+
+    return is_string($mimeType) && str_starts_with($mimeType, 'image/');
+}
 
 $files = [];
 if (is_dir($uploadDir)) {
@@ -28,6 +50,7 @@ if (is_dir($uploadDir)) {
             'name' => $item,
             'size' => filesize($filePath),
             'modified' => filemtime($filePath),
+            'isImage' => isPreviewableImage($filePath),
         ];
     }
 }
@@ -52,6 +75,30 @@ function formatTimestamp(int $timestamp): string
     return date('M j, Y H:i', $timestamp);
 }
 
+function iniSizeToBytes(string $value): int
+{
+    $value = trim($value);
+    $unit = strtolower(substr($value, -1));
+    $number = (int) $value;
+
+    return match ($unit) {
+        'g' => $number * 1024 * 1024 * 1024,
+        'm' => $number * 1024 * 1024,
+        'k' => $number * 1024,
+        default => (int) $value,
+    };
+}
+
+$appUploadLimitBytes = 2 * 1024 * 1024;
+$uploadMaxSizeBytes = iniSizeToBytes((string) ini_get('upload_max_filesize'));
+$postMaxSizeBytes = iniSizeToBytes((string) ini_get('post_max_size'));
+
+$serverLimits = array_filter([$uploadMaxSizeBytes, $postMaxSizeBytes], static fn(int $bytes): bool => $bytes > 0);
+$effectiveServerUploadLimitBytes = $serverLimits === [] ? $appUploadLimitBytes : min($serverLimits);
+$effectiveUploadLimitBytes = min($appUploadLimitBytes, $effectiveServerUploadLimitBytes);
+
+$effectiveUploadLimitLabel = formatFileSize($effectiveUploadLimitBytes);
+
 $status = $_GET['status'] ?? '';
 $banner = null;
 
@@ -60,9 +107,11 @@ if ($status === 'upload_success') {
 } elseif ($status === 'delete_success') {
     $banner = ['type' => 'success', 'title' => 'Berkas dihapus', 'message' => 'Berkas yang dipilih berhasil dihapus.'];
 } elseif ($status === 'error_permissions') {
-    $banner = ['type' => 'error', 'title' => 'Penyimpanan tidak tersedia', 'message' => 'Folder unggahan tidak dapat ditulis. Periksa izin folder pada server.'];
+    $banner = ['type' => 'error', 'title' => 'Penyimpanan tidak tersedia', 'message' => 'Layanan penyimpanan sedang tidak tersedia sementara. Silakan coba lagi beberapa saat lagi.'];
 } elseif ($status === 'error_size') {
-    $banner = ['type' => 'error', 'title' => 'Berkas terlalu besar', 'message' => 'Berkas yang dipilih melebihi batas unggahan 20 MB.'];
+    $banner = ['type' => 'error', 'title' => 'Berkas terlalu besar', 'message' => 'Ukuran berkas melebihi batas unggahan saat ini (' . $effectiveUploadLimitLabel . '). Silakan pilih berkas yang lebih kecil lalu coba lagi.'];
+} elseif ($status === 'error_server_limit') {
+    $banner = ['type' => 'error', 'title' => 'Berkas terlalu besar', 'message' => 'Ukuran berkas melampaui batas unggahan saat ini (' . $effectiveUploadLimitLabel . '). Silakan kompres berkas atau pilih file lain yang lebih kecil.'];
 } elseif ($status === 'error_partial') {
     $banner = ['type' => 'error', 'title' => 'Unggahan terputus', 'message' => 'Proses unggahan berkas belum selesai. Silakan coba lagi.'];
 } elseif ($status === 'error_nofile') {
@@ -72,26 +121,28 @@ if ($status === 'upload_success') {
 } elseif ($status === 'error_security') {
     $banner = ['type' => 'error', 'title' => 'Permintaan tidak valid', 'message' => 'Sesi atau token keamanan tidak cocok. Silakan muat ulang halaman dan coba lagi.'];
 } elseif ($status === 'error') {
-    $banner = ['type' => 'error', 'title' => 'Terjadi kesalahan', 'message' => 'Silakan coba lagi dan periksa pilihan berkas atau izin server.'];
+    $banner = ['type' => 'error', 'title' => 'Terjadi kesalahan', 'message' => 'Silakan coba lagi dan pastikan berkas yang dipilih sudah benar.'];
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>hawpiwcloud</title>
     <link rel="stylesheet" href="assets/styles.css">
 </head>
+
 <body>
     <main class="shell">
         <header class="site-header">
             <a class="brand" href="#top" aria-label="Beranda hawpiwcloud">
                 <span class="brand-mark" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M12 4v11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                        <path d="m7.5 9 4.5-4.5L16.5 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M12 4v11" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        <path d="m7.5 9 4.5-4.5L16.5 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                 </span>
                 <span class="brand-name">hawpiwcloud</span>
@@ -106,7 +157,7 @@ if ($status === 'upload_success') {
         </header>
 
         <section class="hero" id="top">
-            <h1>Simpan dan Tinjau Berkas dalam Satu Dasbor yang Bersih</h1>
+            <h1>Penyimpanan Berbasis Cloud Computing</h1>
             <p class="subtitle">Unggah, tinjau, unduh, dan kelola berkas Anda melalui antarmuka tenang yang terinspirasi dari produk SaaS modern dan dasbor awan yang rapi.</p>
         </section>
 
@@ -116,13 +167,13 @@ if ($status === 'upload_success') {
                     <div class="banner-badge">
                         <?php if ($banner['type'] === 'success'): ?>
                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="18" height="18">
-                                <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
                         <?php else: ?>
                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width="18" height="18">
-                                <path d="M12 9v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                <path d="M12 16.5h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                                <path d="M10.29 3.86l-8.17 14A2 2 0 0 0 3.85 21h16.3a2 2 0 0 0 1.73-3.14l-8.17-14a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                                <path d="M12 9v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                <path d="M12 16.5h.01" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                                <path d="M10.29 3.86l-8.17 14A2 2 0 0 0 3.85 21h16.3a2 2 0 0 0 1.73-3.14l-8.17-14a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
                             </svg>
                         <?php endif; ?>
                     </div>
@@ -146,13 +197,13 @@ if ($status === 'upload_success') {
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                         <div class="upload-grid">
                             <label class="dropzone" id="dropzone" for="file-input">
-                                <input class="dropzone-input" id="file-input" type="file" name="fileToUpload" accept="*/*" required>
+                                <input class="dropzone-input" id="file-input" type="file" name="fileToUpload" accept="*/*" data-max-file-bytes="<?= htmlspecialchars((string) $effectiveUploadLimitBytes, ENT_QUOTES, 'UTF-8'); ?>" data-max-file-label="<?= htmlspecialchars($effectiveUploadLimitLabel, ENT_QUOTES, 'UTF-8'); ?>" required>
                                 <div class="dropzone-content" id="dropzone-content">
                                     <div class="dropzone-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
-                                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-                                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
                                         </svg>
                                     </div>
                                     <div class="dropzone-title">Klik untuk mengunggah atau seret dan lepaskan</div>
@@ -173,8 +224,8 @@ if ($status === 'upload_success') {
                                 <div class="preview-shell">
                                     <div class="preview-empty" id="preview-empty">
                                         <svg viewBox="0 0 24 24" fill="none" width="30" height="30" aria-hidden="true">
-                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
                                         </svg>
                                         <div>Pratinjau unggahan akan muncul di sini</div>
                                         <span>Pilih gambar atau dokumen untuk memastikan berkas sebelum dikirim.</span>
@@ -182,8 +233,8 @@ if ($status === 'upload_success') {
                                     <img class="preview-image" id="preview-image" alt="Pratinjau berkas">
                                     <div class="preview-icon" id="preview-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none" width="34" height="34">
-                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
                                         </svg>
                                     </div>
                                 </div>
@@ -193,17 +244,18 @@ if ($status === 'upload_success') {
                                     <span id="preview-details">Ukuran dan jenis berkas akan tampil di sini.</span>
                                     <div class="helper-note">
                                         <span><strong>Tips:</strong> Gambar akan menampilkan thumbnail secara otomatis.</span>
-                                        <span>Batas unggahan maksimal: 20 MB</span>
+                                        <span>Batas unggahan saat ini: <?= htmlspecialchars($effectiveUploadLimitLabel); ?> per berkas.</span>
                                     </div>
+                                    <p class="upload-feedback" id="upload-feedback" role="alert" aria-live="assertive" hidden></p>
                                 </div>
 
                                 <div class="upload-actions">
                                     <button class="secondary-button" type="button" id="clear-file">Atur Ulang</button>
                                     <button class="primary-button" type="submit">
                                         <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-                                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
                                         </svg>
                                         Unggah Berkas
                                     </button>
@@ -236,26 +288,30 @@ if ($status === 'upload_success') {
                             <tbody>
                                 <?php foreach ($files as $file): ?>
                                     <tr>
-                                        <td>
+                                        <td data-label="Nama Berkas">
                                             <div class="file-name">
-                                                <div class="file-icon" aria-hidden="true">
-                                                    <svg viewBox="0 0 24 24" fill="none">
-                                                        <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                                                        <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                                                    </svg>
-                                                </div>
+                                                <?php if ($file['isImage']): ?>
+                                                    <img class="file-preview" src="uploads/<?= htmlspecialchars(rawurlencode($file['name']), ENT_QUOTES, 'UTF-8'); ?>" alt="Pratinjau <?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>" loading="lazy">
+                                                <?php else: ?>
+                                                    <div class="file-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 24 24" fill="none">
+                                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                                                        </svg>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <span title="<?= htmlspecialchars($file['name']); ?>"><?= htmlspecialchars($file['name']); ?></span>
                                             </div>
                                         </td>
-                                        <td class="meta"><?= formatFileSize((int)$file['size']); ?></td>
-                                        <td class="meta"><?= formatTimestamp((int)$file['modified']); ?></td>
-                                        <td>
+                                        <td class="meta" data-label="Ukuran"><?= formatFileSize((int)$file['size']); ?></td>
+                                        <td class="meta" data-label="Terakhir Diubah"><?= formatTimestamp((int)$file['modified']); ?></td>
+                                        <td data-label="Aksi">
                                             <div class="actions">
                                                 <a class="action-button download icon-only" href="download.php?file=<?= urlencode($file['name']); ?>" aria-label="Unduh <?= htmlspecialchars($file['name']); ?>" title="Unduh">
                                                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                        <path d="M12 3.75v9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-                                                        <path d="m8.25 9.75 3.75 3.75 3.75-3.75" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                                                        <path d="M5.5 18.5h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                                                        <path d="M12 3.75v9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                                        <path d="m8.25 9.75 3.75 3.75 3.75-3.75" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                                                        <path d="M5.5 18.5h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
                                                     </svg>
                                                 </a>
                                                 <form class="action-form" action="delete.php" method="post" onsubmit="return confirm('Hapus berkas ini?');">
@@ -263,10 +319,10 @@ if ($status === 'upload_success') {
                                                     <input type="hidden" name="file" value="<?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>">
                                                     <button class="action-button delete icon-only" type="submit" aria-label="Hapus <?= htmlspecialchars($file['name']); ?>" title="Hapus">
                                                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                            <path d="M5.75 7h12.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-                                                            <path d="M9 7V5.75A1.75 1.75 0 0 1 10.75 4h2.5A1.75 1.75 0 0 1 15 5.75V7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-                                                            <path d="M8.5 7.25l.55 10.3A1.75 1.75 0 0 0 10.8 19h2.4a1.75 1.75 0 0 0 1.75-1.45l.55-10.3" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>
-                                                            <path d="M10.25 10.25v4.5M13.75 10.25v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                                                            <path d="M5.75 7h12.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                                            <path d="M9 7V5.75A1.75 1.75 0 0 1 10.75 4h2.5A1.75 1.75 0 0 1 15 5.75V7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                                                            <path d="M8.5 7.25l.55 10.3A1.75 1.75 0 0 0 10.8 19h2.4a1.75 1.75 0 0 0 1.75-1.45l.55-10.3" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
+                                                            <path d="M10.25 10.25v4.5M13.75 10.25v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
                                                         </svg>
                                                     </button>
                                                 </form>
@@ -282,9 +338,9 @@ if ($status === 'upload_success') {
                         <div class="empty-card">
                             <div class="empty-mark" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
-                                    <path d="M7.5 18.5h9a4 4 0 0 0 .9-7.89 5.5 5.5 0 0 0-10.48-1.28A3.75 3.75 0 0 0 7.5 18.5Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M12 12v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-                                    <path d="M9.75 14.25 12 12l2.25 2.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M7.5 18.5h9a4 4 0 0 0 .9-7.89 5.5 5.5 0 0 0-10.48-1.28A3.75 3.75 0 0 0 7.5 18.5Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M12 12v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                                    <path d="M9.75 14.25 12 12l2.25 2.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                                 </svg>
                             </div>
                             <h3>Belum ada berkas</h3>
@@ -323,8 +379,8 @@ if ($status === 'upload_success') {
                 <section class="safety-card" aria-labelledby="safety-title">
                     <div class="safety-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" width="22" height="22">
-                            <path d="M12 3.75 19 6.5v5.25c0 4.42-2.83 7.99-7 9.5-4.17-1.51-7-5.08-7-9.5V6.5l7-2.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-                            <path d="M9.5 12.25 11.2 14l3.3-3.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 3.75 19 6.5v5.25c0 4.42-2.83 7.99-7 9.5-4.17-1.51-7-5.08-7-9.5V6.5l7-2.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                            <path d="M9.5 12.25 11.2 14l3.3-3.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
                     </div>
                     <div>
@@ -390,7 +446,7 @@ if ($status === 'upload_success') {
                             <span class="faq-icon" aria-hidden="true">+</span>
                         </button>
                         <div class="faq-answer">
-                            <div class="faq-answer-inner">Batas unggahan saat ini adalah 20 MB per berkas. Jika melebihi batas ini, sistem akan menampilkan pesan kesalahan agar Anda bisa memilih berkas yang lebih kecil.</div>
+                            <div class="faq-answer-inner">Batas unggahan saat ini adalah <?= htmlspecialchars($effectiveUploadLimitLabel); ?> per berkas. Jika berkas Anda lebih besar, silakan kompres terlebih dahulu atau unggah file yang ukurannya lebih kecil.</div>
                         </div>
                     </article>
 
@@ -481,14 +537,14 @@ if ($status === 'upload_success') {
                         <div class="footer-social" aria-label="Sosial media">
                             <a class="social-link" href="#" aria-label="X">
                                 <svg viewBox="0 0 24 24" fill="none" width="17" height="17" aria-hidden="true">
-                                    <path d="M4 4l7.4 8.7L4.1 20h2.2l6.4-6.9L18.4 20H20l-7.8-9.1L20 4h-2.2l-6 6.5L6.6 4H4Z" fill="currentColor"/>
+                                    <path d="M4 4l7.4 8.7L4.1 20h2.2l6.4-6.9L18.4 20H20l-7.8-9.1L20 4h-2.2l-6 6.5L6.6 4H4Z" fill="currentColor" />
                                 </svg>
                             </a>
                             <a class="social-link" href="#" aria-label="LinkedIn">
                                 <svg viewBox="0 0 24 24" fill="none" width="17" height="17" aria-hidden="true">
-                                    <path d="M6.5 9.25V18M6.5 6.2v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                    <path d="M10.25 18v-4.5c0-1.94 1.05-3.25 2.82-3.25 1.72 0 2.68 1.15 2.68 3.25V18M15.75 10.25V18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M6.5 5.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" fill="currentColor"/>
+                                    <path d="M6.5 9.25V18M6.5 6.2v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                    <path d="M10.25 18v-4.5c0-1.94 1.05-3.25 2.82-3.25 1.72 0 2.68 1.15 2.68 3.25V18M15.75 10.25V18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    <path d="M6.5 5.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" fill="currentColor" />
                                 </svg>
                             </a>
                         </div>
@@ -507,4 +563,5 @@ if ($status === 'upload_success') {
     </main>
     <script src="assets/app.js" defer></script>
 </body>
+
 </html>

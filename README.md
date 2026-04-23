@@ -25,7 +25,7 @@ hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk meng
 Jalankan perintah berikut dari root proyek:
 
 ```bash
-php -S localhost:8000
+php -d upload_max_filesize=20M -d post_max_size=24M -S localhost:8000
 ```
 
 Lalu buka:
@@ -79,6 +79,21 @@ Konfigurasi saat ini menggunakan batas berikut:
 - `upload_max_filesize = 20M`
 - `post_max_size = 24M`
 - Batas validasi aplikasi: 20 MB per file
+
+### Jika masih mentok di bawah 20 MB
+
+Jika unggahan sudah gagal saat 5 MB atau ukuran lain di bawah 20 MB, berarti batas efektif server masih lebih kecil dari konfigurasi aplikasi.
+
+Hal yang perlu dicek:
+
+- Nilai `upload_max_filesize` pada konfigurasi PHP aktif.
+- Nilai `post_max_size` pada konfigurasi PHP aktif.
+- Restart web server/PHP-FPM setelah mengubah konfigurasi.
+
+Catatan:
+
+- File `.user.ini` biasanya berlaku pada mode CGI/FastCGI.
+- Pada server tertentu (misalnya Apache dengan modul PHP atau konfigurasi container tertentu), Anda perlu mengubah `php.ini` utama atau konfigurasi pool/server agar perubahan benar-benar aktif.
 
 ## Tampilan dan Interaksi
 
