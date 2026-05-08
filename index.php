@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+
+$currentUser = authRequireLogin();
 
 if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_SESSION['csrf_token'] === '') {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -18,19 +20,19 @@ function isPreviewableImage(string $filePath): bool
         return false;
     }
 
-    if (!function_exists('finfo_open')) {
-        return (bool) preg_match('/\.(jpe?g|png|gif|webp|bmp|avif|svg)$/i', $filePath);
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo !== false) {
+            $mimeType = finfo_file($finfo, $filePath);
+            finfo_close($finfo);
+
+            if (is_string($mimeType) && str_starts_with($mimeType, 'image/')) {
+                return true;
+            }
+        }
     }
 
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    if ($finfo === false) {
-        return (bool) preg_match('/\.(jpe?g|png|gif|webp|bmp|avif|svg)$/i', $filePath);
-    }
-
-    $mimeType = finfo_file($finfo, $filePath);
-    finfo_close($finfo);
-
-    return is_string($mimeType) && str_starts_with($mimeType, 'image/');
+    return (bool) preg_match('/\.(jpe?g|png|gif|webp|bmp|avif|svg)$/i', $filePath);
 }
 
 $files = [];
@@ -96,11 +98,11 @@ $postMaxSizeBytes = iniSizeToBytes((string) ini_get('post_max_size'));
 $serverLimits = array_filter([$uploadMaxSizeBytes, $postMaxSizeBytes], static fn(int $bytes): bool => $bytes > 0);
 $effectiveServerUploadLimitBytes = $serverLimits === [] ? $appUploadLimitBytes : min($serverLimits);
 $effectiveUploadLimitBytes = min($appUploadLimitBytes, $effectiveServerUploadLimitBytes);
-
 $effectiveUploadLimitLabel = formatFileSize($effectiveUploadLimitBytes);
 
 $status = $_GET['status'] ?? '';
 $banner = null;
+$assetVersion = '20260508-login';
 
 if ($status === 'upload_success') {
     $banner = ['type' => 'success', 'title' => 'Unggahan selesai', 'message' => 'Berkas Anda berhasil ditambahkan ke penyimpanan awan.'];
@@ -120,6 +122,8 @@ if ($status === 'upload_success') {
     $banner = ['type' => 'error', 'title' => 'Jenis berkas tidak didukung', 'message' => 'File yang dipilih tidak sesuai dengan jenis yang diizinkan untuk diunggah.'];
 } elseif ($status === 'error_security') {
     $banner = ['type' => 'error', 'title' => 'Permintaan tidak valid', 'message' => 'Sesi atau token keamanan tidak cocok. Silakan muat ulang halaman dan coba lagi.'];
+} elseif ($status === 'error_forbidden') {
+    $banner = ['type' => 'error', 'title' => 'Akses dashboard dibatasi', 'message' => 'Akun user biasa hanya dapat mengakses halaman website. Dashboard dan fitur pengelolaan tersedia untuk admin.'];
 } elseif ($status === 'error') {
     $banner = ['type' => 'error', 'title' => 'Terjadi kesalahan', 'message' => 'Silakan coba lagi dan pastikan berkas yang dipilih sudah benar.'];
 }
@@ -131,7 +135,7 @@ if ($status === 'upload_success') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>hawpiwcloud</title>
-    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="stylesheet" href="assets/styles.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8'); ?>">
 </head>
 
 <body>
@@ -150,15 +154,66 @@ if ($status === 'upload_success') {
 
             <nav class="site-nav" aria-label="Primary">
                 <a href="#top">Beranda</a>
+                <a href="#files">Berkas</a>
                 <a href="#how-it-works">Cara Kerja</a>
-                <a href="#files-title">Tentang</a>
-                <a class="action-button nav-cta" href="#upload-panel">Masuk</a>
+                <a href="#faq">FAQ</a>
+                <?php if (authIsAdmin()): ?>
+                    <a href="dashboard.php">Dashboard</a>
+                <?php endif; ?>
+                <a class="action-button nav-cta" href="logout.php">Logout</a>
             </nav>
         </header>
 
         <section class="hero" id="top">
             <h1>Penyimpanan Berbasis Cloud Computing</h1>
             <p class="subtitle">Unggah, tinjau, unduh, dan kelola berkas Anda melalui antarmuka tenang yang terinspirasi dari produk SaaS modern dan dasbor awan yang rapi.</p>
+        </section>
+
+        <section class="cta-band" id="masuk-section" aria-labelledby="masuk-title">
+            <h3 id="masuk-title">Selamat Datang, <?= htmlspecialchars($currentUser['name'], ENT_QUOTES, 'UTF-8'); ?></h3>
+            <p><?= authIsAdmin() ? 'Akun admin dapat membuka dashboard untuk mengelola unggahan, daftar berkas, unduhan, dan penghapusan file.' : 'Akun user biasa dapat mengakses halaman website ini, sementara dashboard dan fitur pengelolaan tetap dibatasi untuk admin.'; ?></p>
+            <div class="entry-actions">
+                <?php if (authIsAdmin()): ?>
+                    <a class="primary-button" href="dashboard.php">
+                        <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        Buka Dashboard
+                    </a>
+                    <a class="secondary-button" href="dashboard.php#files">
+                        <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                        </svg>
+                        Lihat Dashboard
+                    </a>
+                <?php else: ?>
+                    <a class="primary-button" href="#files">
+                        <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                        </svg>
+                        Lihat Berkas
+                    </a>
+                    <a class="secondary-button" href="#how-it-works">
+                        <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 5v14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                            <path d="M5 12h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                        </svg>
+                        Cara Kerja
+                    </a>
+                <?php endif; ?>
+                <a class="secondary-button" href="logout.php">
+                    <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M9.75 5.75H7A2 2 0 0 0 5 7.75v8.5a2 2 0 0 0 2 2h2.75" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                        <path d="M13 8.5 16.5 12 13 15.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M16.25 12H9.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                    </svg>
+                    Logout
+                </a>
+            </div>
         </section>
 
         <div class="stack">
@@ -184,93 +239,11 @@ if ($status === 'upload_success') {
                 </div>
             <?php endif; ?>
 
-            <section class="panel" id="upload-panel" aria-labelledby="upload-title">
+            <section class="panel files-panel" aria-labelledby="files-title" id="files">
                 <div class="panel-head">
                     <div>
-                        <h2 id="upload-title">Unggah Berkas</h2>
-                        <span>Pilih berkas, tinjau pratinjau, lalu unggah.</span>
-                    </div>
-                </div>
-
-                <div class="upload-card">
-                    <form action="upload.php" method="post" enctype="multipart/form-data" id="upload-form">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                        <div class="upload-grid">
-                            <label class="dropzone" id="dropzone" for="file-input">
-                                <input class="dropzone-input" id="file-input" type="file" name="fileToUpload" accept="*/*" data-max-file-bytes="<?= htmlspecialchars((string) $effectiveUploadLimitBytes, ENT_QUOTES, 'UTF-8'); ?>" data-max-file-label="<?= htmlspecialchars($effectiveUploadLimitLabel, ENT_QUOTES, 'UTF-8'); ?>" required>
-                                <div class="dropzone-content" id="dropzone-content">
-                                    <div class="dropzone-icon" aria-hidden="true">
-                                        <svg viewBox="0 0 24 24" fill="none" width="28" height="28">
-                                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
-                                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                                        </svg>
-                                    </div>
-                                    <div class="dropzone-title">Klik untuk mengunggah atau seret dan lepaskan</div>
-                                    <p class="dropzone-copy">Semua jenis file bisa diunggah. Pratinjau akan tampil otomatis untuk gambar agar Anda bisa memastikan berkas sebelum dikirim.</p>
-                                    <span class="file-chip" id="file-chip">Belum ada berkas yang dipilih</span>
-                                </div>
-                            </label>
-
-                            <aside class="preview-panel" aria-live="polite">
-                                <div class="preview-titlebar">
-                                    <div class="window-dots" aria-hidden="true">
-                                        <span></span>
-                                        <span></span>
-                                        <span></span>
-                                    </div>
-                                    <div class="preview-title">Pratinjau hawpiwcloud</div>
-                                </div>
-                                <div class="preview-shell">
-                                    <div class="preview-empty" id="preview-empty">
-                                        <svg viewBox="0 0 24 24" fill="none" width="30" height="30" aria-hidden="true">
-                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                                        </svg>
-                                        <div>Pratinjau unggahan akan muncul di sini</div>
-                                        <span>Pilih gambar atau dokumen untuk memastikan berkas sebelum dikirim.</span>
-                                    </div>
-                                    <img class="preview-image" id="preview-image" alt="Pratinjau berkas">
-                                    <div class="preview-icon" id="preview-icon" aria-hidden="true">
-                                        <svg viewBox="0 0 24 24" fill="none" width="34" height="34">
-                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                                        </svg>
-                                    </div>
-                                </div>
-
-                                <div class="preview-meta">
-                                    <strong id="preview-name">Belum ada berkas yang dipilih</strong>
-                                    <span id="preview-details">Ukuran dan jenis berkas akan tampil di sini.</span>
-                                    <div class="helper-note">
-                                        <span><strong>Tips:</strong> Gambar akan menampilkan thumbnail secara otomatis.</span>
-                                        <span>Batas unggahan saat ini: <?= htmlspecialchars($effectiveUploadLimitLabel); ?> per berkas.</span>
-                                    </div>
-                                    <p class="upload-feedback" id="upload-feedback" role="alert" aria-live="assertive" hidden></p>
-                                </div>
-
-                                <div class="upload-actions">
-                                    <button class="secondary-button" type="button" id="clear-file">Atur Ulang</button>
-                                    <button class="primary-button" type="submit">
-                                        <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                            <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
-                                            <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                                            <path d="M5.5 15.5V17A2.5 2.5 0 0 0 8 19.5h8A2.5 2.5 0 0 0 18.5 17v-1.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                                        </svg>
-                                        Unggah Berkas
-                                    </button>
-                                </div>
-                            </aside>
-                        </div>
-                    </form>
-                </div>
-            </section>
-
-            <section class="panel files-panel" aria-labelledby="files-title">
-                <div class="panel-head">
-                    <div>
-                        <h2 id="files-title">Berkas Tersimpan</h2>
-                        <span><?= count($files); ?> berkas tersimpan di ruang kerja Anda</span>
+                        <h2 id="files-title">Berkas Cloud</h2>
+                        <span><?= count($files); ?> berkas tersedia untuk diunduh</span>
                     </div>
                 </div>
 
@@ -282,52 +255,39 @@ if ($status === 'upload_success') {
                                     <th>Nama Berkas</th>
                                     <th>Ukuran</th>
                                     <th>Terakhir Diubah</th>
-                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($files as $file): ?>
                                     <tr>
                                         <td data-label="Nama Berkas">
-                                            <div class="file-name">
-                                                <?php if ($file['isImage']): ?>
-                                                    <img class="file-preview" src="uploads/<?= htmlspecialchars(rawurlencode($file['name']), ENT_QUOTES, 'UTF-8'); ?>" alt="Pratinjau <?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>" loading="lazy">
-                                                <?php else: ?>
-                                                    <div class="file-icon" aria-hidden="true">
-                                                        <svg viewBox="0 0 24 24" fill="none">
-                                                            <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                                                            <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
-                                                        </svg>
-                                                    </div>
-                                                <?php endif; ?>
-                                                <span title="<?= htmlspecialchars($file['name']); ?>"><?= htmlspecialchars($file['name']); ?></span>
-                                            </div>
-                                        </td>
-                                        <td class="meta" data-label="Ukuran"><?= formatFileSize((int)$file['size']); ?></td>
-                                        <td class="meta" data-label="Terakhir Diubah"><?= formatTimestamp((int)$file['modified']); ?></td>
-                                        <td data-label="Aksi">
-                                            <div class="actions">
-                                                <a class="action-button download icon-only" href="download.php?file=<?= urlencode($file['name']); ?>" aria-label="Unduh <?= htmlspecialchars($file['name']); ?>" title="Unduh">
-                                                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                        <path d="M12 3.75v9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
-                                                        <path d="m8.25 9.75 3.75 3.75 3.75-3.75" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                                                        <path d="M5.5 18.5h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
-                                                    </svg>
-                                                </a>
-                                                <form class="action-form" action="delete.php" method="post" onsubmit="return confirm('Hapus berkas ini?');">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
-                                                    <input type="hidden" name="file" value="<?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>">
-                                                    <button class="action-button delete icon-only" type="submit" aria-label="Hapus <?= htmlspecialchars($file['name']); ?>" title="Hapus">
+                                            <div class="file-row">
+                                                <div class="file-name">
+                                                    <?php if ($file['isImage']): ?>
+                                                        <img class="file-preview" src="uploads/<?= htmlspecialchars(rawurlencode($file['name']), ENT_QUOTES, 'UTF-8'); ?>" alt="Pratinjau <?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>" loading="lazy">
+                                                    <?php else: ?>
+                                                        <div class="file-icon" aria-hidden="true">
+                                                            <svg viewBox="0 0 24 24" fill="none">
+                                                                <path d="M7 3.75h6.5L19 9.25V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                                                                <path d="M13.5 3.75V9.25H19" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                                                            </svg>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                    <span title="<?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                </div>
+                                                <div class="actions file-actions">
+                                                    <a class="action-button download icon-only" href="download.php?file=<?= urlencode($file['name']); ?>" aria-label="Unduh <?= htmlspecialchars($file['name'], ENT_QUOTES, 'UTF-8'); ?>" title="Unduh">
                                                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                                            <path d="M5.75 7h12.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
-                                                            <path d="M9 7V5.75A1.75 1.75 0 0 1 10.75 4h2.5A1.75 1.75 0 0 1 15 5.75V7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                                                            <path d="M8.5 7.25l.55 10.3A1.75 1.75 0 0 0 10.8 19h2.4a1.75 1.75 0 0 0 1.75-1.45l.55-10.3" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
-                                                            <path d="M10.25 10.25v4.5M13.75 10.25v4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                                            <path d="M12 3.75v9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+                                                            <path d="m8.25 9.75 3.75 3.75 3.75-3.75" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                                                            <path d="M5.5 18.5h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
                                                         </svg>
-                                                    </button>
-                                                </form>
+                                                    </a>
+                                                </div>
                                             </div>
                                         </td>
+                                        <td class="meta" data-label="Ukuran"><?= formatFileSize((int) $file['size']); ?></td>
+                                        <td class="meta" data-label="Terakhir Diubah"><?= formatTimestamp((int) $file['modified']); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -344,7 +304,7 @@ if ($status === 'upload_success') {
                                 </svg>
                             </div>
                             <h3>Belum ada berkas</h3>
-                            <p>Penyimpanan Anda masih kosong. Unggah berkas untuk menampilkan daftar dan mulai mengelolanya dari dasbor ini.</p>
+                            <p>Cloud masih kosong. Berkas yang diunggah admin akan tampil di sini dan bisa diunduh oleh user biasa.</p>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -353,26 +313,26 @@ if ($status === 'upload_success') {
             <section class="how-section" id="how-it-works" aria-labelledby="how-title">
                 <div class="how-header">
                     <h2 id="how-title">Cara Kerja</h2>
-                    <p>Tiga langkah sederhana untuk mengunggah, meninjau, dan mengelola berkas Anda dari satu dasbor penyimpanan awan yang bersih.</p>
+                    <p>Tiga langkah sederhana untuk membaca, mengunduh, dan memahami alur pengelolaan berkas di hawpiwcloud.</p>
                 </div>
 
                 <div class="steps-grid">
                     <article class="step-card">
                         <div class="step-pill">1</div>
-                        <h3>Unggah Berkas Anda</h3>
-                        <p>Klik area unggah atau seret berkas ke dropzone. Anda dapat memilih gambar, dokumen, atau arsip sebelum mengirimkannya ke server.</p>
+                        <h3>Lihat Berkas Cloud</h3>
+                        <p>Setelah login, user biasa dapat melihat daftar file yang tersedia beserta ukuran, waktu perubahan terakhir, dan pratinjau gambar.</p>
                     </article>
 
                     <article class="step-card">
                         <div class="step-pill">2</div>
-                        <h3>Tinjau Pratinjau</h3>
-                        <p>Periksa panel pratinjau di sebelah kanan untuk memastikan nama, ukuran, serta thumbnail atau ikon berkas sebelum melanjutkan.</p>
+                        <h3>Unduh File</h3>
+                        <p>Klik ikon unduh pada baris file untuk menyimpan berkas dari cloud ke perangkat Anda tanpa akses untuk mengubah atau menghapusnya.</p>
                     </article>
 
                     <article class="step-card">
                         <div class="step-pill">3</div>
-                        <h3>Kelola Hasilnya</h3>
-                        <p>Setelah unggah selesai, berkas Anda akan muncul di tabel sehingga bisa diunduh kapan saja atau dihapus dengan satu klik.</p>
+                        <h3>Admin Mengelola</h3>
+                        <p>Upload dan hapus file hanya tersedia di dashboard admin, sehingga user biasa tetap berada pada akses baca dan unduh saja.</p>
                     </article>
                 </div>
 
@@ -390,15 +350,15 @@ if ($status === 'upload_success') {
                             <span>Divalidasi sebelum disimpan</span>
                             <span>Pratinjau gambar dan dokumen</span>
                             <span>Batas ukuran ditegakkan</span>
-                            <span>Kontrol unduh dan hapus</span>
+                            <span>Role akses dipisahkan</span>
                         </div>
                     </div>
                 </section>
 
                 <div class="cta-band">
                     <h3>Butuh cara yang lebih rapi untuk mengatur berkas?</h3>
-                    <p>Gunakan dasbor ini untuk mengunggah, meninjau, dan mengelola berkas dengan antarmuka minimal yang tetap nyaman dibaca di desktop, tablet, dan ponsel.</p>
-                    <a class="cta-button" href="#upload-panel">Mulai Sekarang</a>
+                    <p><?= authIsAdmin() ? 'Gunakan dashboard untuk mengelola berkas lewat halaman kerja khusus yang lebih fokus, dengan tampilan yang tetap nyaman dibaca di desktop, tablet, dan ponsel.' : 'Login Anda aktif sebagai user biasa. Halaman website tetap dapat dibaca, sedangkan dashboard pengelolaan hanya tersedia untuk admin.'; ?></p>
+                    <a class="cta-button" href="<?= authIsAdmin() ? 'dashboard.php' : 'logout.php'; ?>"><?= authIsAdmin() ? 'Buka Dashboard' : 'Logout' ?></a>
                 </div>
             </section>
 
@@ -416,7 +376,7 @@ if ($status === 'upload_success') {
                             <span class="faq-icon" aria-hidden="true">+</span>
                         </button>
                         <div class="faq-answer">
-                            <div class="faq-answer-inner">Klik area unggah, pilih berkas dari perangkat Anda, periksa pratinjau di panel kanan, lalu tekan tombol <strong>Unggah Berkas</strong>.</div>
+                            <div class="faq-answer-inner">Unggah berkas hanya tersedia untuk admin melalui dashboard. User biasa dapat melihat dan mengunduh berkas yang sudah tersedia di halaman ini.</div>
                         </div>
                     </article>
 
@@ -436,7 +396,7 @@ if ($status === 'upload_success') {
                             <span class="faq-icon" aria-hidden="true">+</span>
                         </button>
                         <div class="faq-answer">
-                            <div class="faq-answer-inner">Bisa. Gambar akan ditampilkan sebagai thumbnail, sedangkan jenis berkas lain akan tampil sebagai ikon beserta nama dan ukurannya.</div>
+                            <div class="faq-answer-inner">Admin dapat melihat pratinjau sebelum mengunggah dari dashboard. Di halaman user, gambar yang sudah tersimpan tetap tampil sebagai thumbnail pada daftar berkas.</div>
                         </div>
                     </article>
 
@@ -466,12 +426,12 @@ if ($status === 'upload_success') {
                             <span class="faq-icon" aria-hidden="true">+</span>
                         </button>
                         <div class="faq-answer">
-                            <div class="faq-answer-inner">Pada tabel berkas, klik ikon hapus di kolom Aksi. Sistem akan meminta konfirmasi sebelum berkas benar-benar dihapus dari folder penyimpanan.</div>
+                            <div class="faq-answer-inner">Penghapusan berkas hanya bisa dilakukan oleh admin dari dashboard. User biasa tidak memiliki tombol hapus dan tidak bisa mengakses endpoint delete.</div>
                         </div>
                     </article>
                 </div>
 
-                <p class="faq-footnote">Jika pertanyaan Anda belum terjawab, Anda bisa langsung mencoba unggah satu berkas dan melihat pratinjau serta respons sistem secara langsung.</p>
+                <p class="faq-footnote">Jika pertanyaan Anda belum terjawab, cek daftar berkas cloud atau hubungi admin untuk penambahan dan penghapusan file.</p>
             </section>
 
             <footer class="site-footer" aria-labelledby="footer-brand-title">
@@ -493,9 +453,10 @@ if ($status === 'upload_success') {
                             <div class="footer-column">
                                 <h4>Produk</h4>
                                 <div class="footer-links">
-                                    <a href="#upload-panel">Unggah Berkas</a>
-                                    <a href="#files">Daftar Berkas</a>
                                     <a href="#how-it-works">Cara Kerja</a>
+                                    <?php if (authIsAdmin()): ?>
+                                        <a href="dashboard.php">Dashboard</a>
+                                    <?php endif; ?>
                                     <a href="#faq">FAQ</a>
                                 </div>
                             </div>
@@ -505,7 +466,9 @@ if ($status === 'upload_success') {
                                 <div class="footer-links">
                                     <a href="#top">Tentang</a>
                                     <a href="#how-it-works">Blog</a>
-                                    <a href="#upload-panel">Harga</a>
+                                    <?php if (authIsAdmin()): ?>
+                                        <a href="dashboard.php">Dashboard</a>
+                                    <?php endif; ?>
                                     <a href="#faq">Kontak</a>
                                 </div>
                             </div>
@@ -514,8 +477,10 @@ if ($status === 'upload_success') {
                                 <h4>Sumber Daya</h4>
                                 <div class="footer-links">
                                     <a href="#how-it-works">Panduan</a>
-                                    <a href="#files">Lihat Berkas</a>
-                                    <a href="#upload-panel">Pratinjau Berkas</a>
+                                    <?php if (authIsAdmin()): ?>
+                                        <a href="dashboard.php">Lihat Dashboard</a>
+                                    <?php endif; ?>
+                                    <a href="#faq">Panduan Berkas</a>
                                     <a href="#faq">Bantuan</a>
                                 </div>
                             </div>

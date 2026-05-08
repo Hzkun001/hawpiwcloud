@@ -13,6 +13,7 @@
     const clearButton = document.getElementById('clear-file');
     const maxFileBytes = Number.parseInt(fileInput?.dataset.maxFileBytes || '', 10) || MAX_FALLBACK_FILE_BYTES;
     const maxFileLabel = fileInput?.dataset.maxFileLabel || '2 MB';
+    const hasUploadUi = Boolean(fileInput && dropzone && fileChip && uploadForm && previewEmpty && previewImage && previewIcon && previewName && previewDetails && clearButton);
     let objectUrl = null;
 
     const formatBytes = (bytes) => {
@@ -108,44 +109,44 @@
 
     const getSelectedFile = () => (fileInput.files && fileInput.files[0] ? fileInput.files[0] : null);
 
-    fileInput.addEventListener('change', () => {
-        showPreview(getSelectedFile());
-    });
-
-    clearButton.addEventListener('click', () => {
-        fileInput.value = '';
-        resetPreview();
-    });
-
-    ['dragenter', 'dragover'].forEach((eventName) => {
-        dropzone.addEventListener(eventName, (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            dropzone.classList.add('is-dragover');
+    if (hasUploadUi) {
+        fileInput.addEventListener('change', () => {
+            showPreview(getSelectedFile());
         });
-    });
 
-    ['dragleave', 'drop'].forEach((eventName) => {
-        dropzone.addEventListener(eventName, (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            dropzone.classList.remove('is-dragover');
+        clearButton.addEventListener('click', () => {
+            fileInput.value = '';
+            resetPreview();
         });
-    });
 
-    dropzone.addEventListener('drop', (event) => {
-        const droppedFile = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files[0] : null;
-        if (!droppedFile) {
-            return;
-        }
+        ['dragenter', 'dragover'].forEach((eventName) => {
+            dropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropzone.classList.add('is-dragover');
+            });
+        });
 
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(droppedFile);
-        fileInput.files = dataTransfer.files;
-        showPreview(droppedFile);
-    });
+        ['dragleave', 'drop'].forEach((eventName) => {
+            dropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropzone.classList.remove('is-dragover');
+            });
+        });
 
-    if (uploadForm) {
+        dropzone.addEventListener('drop', (event) => {
+            const droppedFile = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files[0] : null;
+            if (!droppedFile) {
+                return;
+            }
+
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(droppedFile);
+            fileInput.files = dataTransfer.files;
+            showPreview(droppedFile);
+        });
+
         uploadForm.addEventListener('submit', (event) => {
             const selectedFile = getSelectedFile();
 
@@ -159,6 +160,8 @@
                 fileInput.focus();
             }
         });
+
+        resetPreview();
     }
 
     const faqItems = document.querySelectorAll('[data-faq] .faq-item');
@@ -192,5 +195,4 @@
         });
     });
 
-    resetPreview();
 })();

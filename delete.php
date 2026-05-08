@@ -1,13 +1,16 @@
 <?php
+
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+
+authRequireAdmin();
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
 
 function redirectWithStatus(string $status): void
 {
-    header('Location: index.php?status=' . rawurlencode($status));
+    header('Location: dashboard.php?status=' . rawurlencode($status));
     exit;
 }
 

@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+
+authRequireAdmin();
 
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
 $appMaxFileSize = 2 * 1024 * 1024;
 
 function redirectWithStatus(string $status): void
 {
-    header('Location: index.php?status=' . rawurlencode($status));
+    header('Location: dashboard.php?status=' . rawurlencode($status));
     exit;
 }
 
@@ -55,7 +57,7 @@ function requestBodyExceededPostMaxSize(): bool
 
 function redirectWithSecurityError(): void
 {
-    header('Location: index.php?status=error_security');
+    header('Location: dashboard.php?status=error_security');
     exit;
 }
 

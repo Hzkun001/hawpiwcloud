@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+
+authRequireLogin();
+
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
 
 if (!isset($_GET['file']) || $_GET['file'] === '') {
@@ -20,10 +24,17 @@ if (!is_file($filePath) || !file_exists($filePath)) {
 }
 
 // Tentukan tipe MIME
-$finfo = finfo_open(FILEINFO_MIME_TYPE);
-$mimeType = $finfo ? finfo_file($finfo, $filePath) : 'application/octet-stream';
-if ($finfo) {
-    finfo_close($finfo);
+$mimeType = 'application/octet-stream';
+if (function_exists('finfo_open')) {
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo !== false) {
+        $detectedMimeType = finfo_file($finfo, $filePath);
+        finfo_close($finfo);
+
+        if (is_string($detectedMimeType) && $detectedMimeType !== '') {
+            $mimeType = $detectedMimeType;
+        }
+    }
 }
 
 header('Content-Description: File Transfer');
