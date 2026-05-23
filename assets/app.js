@@ -13,6 +13,11 @@
     const clearButton = document.getElementById('clear-file');
     const maxFileBytes = Number.parseInt(fileInput?.dataset.maxFileBytes || '', 10) || MAX_FALLBACK_FILE_BYTES;
     const maxFileLabel = fileInput?.dataset.maxFileLabel || '2 MB';
+    const allowedFileTypes = fileInput?.dataset.allowedFileTypes || '';
+    const allowedExtensions = (fileInput?.accept || '')
+        .split(',')
+        .map((item) => item.trim().replace(/^\./, '').toLowerCase())
+        .filter(Boolean);
     const hasUploadUi = Boolean(fileInput && dropzone && fileChip && uploadForm && previewEmpty && previewImage && previewIcon && previewName && previewDetails && clearButton);
     let objectUrl = null;
 
@@ -48,6 +53,15 @@
     };
 
     const isFileWithinLimit = (file) => Boolean(file) && file.size <= maxFileBytes;
+    const isFileTypeAllowed = (file) => {
+        if (!file || allowedExtensions.length === 0) {
+            return true;
+        }
+
+        const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+
+        return allowedExtensions.includes(extension);
+    };
 
     const setFileChipLabel = (label) => {
         fileChip.replaceChildren();
@@ -101,6 +115,12 @@
         if (!isFileWithinLimit(file)) {
             setUploadFeedback(`File ini terlalu besar. Pilih file berukuran ${maxFileLabel} atau lebih kecil.`, 'error');
             previewDetails.textContent = `${formatBytes(file.size)} • Melebihi batas ${maxFileLabel}`;
+            return;
+        }
+
+        if (!isFileTypeAllowed(file)) {
+            setUploadFeedback(`Jenis file tidak didukung. Format yang diizinkan: ${allowedFileTypes}.`, 'error');
+            previewDetails.textContent = `${formatBytes(file.size)} • Jenis file tidak didukung`;
             return;
         }
 
@@ -158,6 +178,13 @@
                 event.preventDefault();
                 setUploadFeedback(`File ini terlalu besar. Pilih file berukuran ${maxFileLabel} atau lebih kecil.`, 'error');
                 fileInput.focus();
+                return;
+            }
+
+            if (!isFileTypeAllowed(selectedFile)) {
+                event.preventDefault();
+                setUploadFeedback(`Jenis file tidak didukung. Format yang diizinkan: ${allowedFileTypes}.`, 'error');
+                fileInput.focus();
             }
         });
 
@@ -192,6 +219,126 @@
             } else {
                 questionButton.setAttribute('aria-expanded', 'false');
             }
+        });
+    });
+
+    const filePreviewImages = document.querySelectorAll('.file-preview');
+    if (filePreviewImages.length > 0) {
+        const lightbox = document.createElement('div');
+        lightbox.className = 'file-lightbox';
+        lightbox.hidden = true;
+        lightbox.innerHTML = `
+            <div class="file-lightbox-panel" role="dialog" aria-modal="true" aria-label="Preview gambar">
+                <button class="file-lightbox-close" type="button" aria-label="Tutup preview">×</button>
+                <img class="file-lightbox-image" alt="">
+                <div class="file-lightbox-caption"></div>
+            </div>
+        `;
+
+        document.body.append(lightbox);
+
+        const lightboxImage = lightbox.querySelector('.file-lightbox-image');
+        const lightboxCaption = lightbox.querySelector('.file-lightbox-caption');
+        const closeButton = lightbox.querySelector('.file-lightbox-close');
+        let activePreview = null;
+
+        const closeLightbox = () => {
+            lightbox.hidden = true;
+            document.body.classList.remove('is-lightbox-open');
+            lightboxImage.src = '';
+            lightboxImage.alt = '';
+            lightboxCaption.textContent = '';
+
+            if (activePreview) {
+                activePreview.focus();
+                activePreview = null;
+            }
+        };
+
+        const openLightbox = (preview) => {
+            const previewSrc = preview.getAttribute('src');
+            if (!previewSrc) {
+                return;
+            }
+
+            activePreview = preview;
+            lightboxImage.src = previewSrc;
+            lightboxImage.alt = preview.getAttribute('alt') || 'Preview gambar';
+            lightboxCaption.textContent = preview.getAttribute('alt') || '';
+            lightbox.hidden = false;
+            document.body.classList.add('is-lightbox-open');
+            closeButton.focus();
+        };
+
+        filePreviewImages.forEach((preview) => {
+            preview.tabIndex = 0;
+            preview.setAttribute('role', 'button');
+
+            preview.addEventListener('click', () => {
+                openLightbox(preview);
+            });
+
+            preview.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') {
+                    return;
+                }
+
+                event.preventDefault();
+                openLightbox(preview);
+            });
+        });
+
+        closeButton.addEventListener('click', closeLightbox);
+
+        lightbox.addEventListener('click', (event) => {
+            if (event.target === lightbox) {
+                closeLightbox();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !lightbox.hidden) {
+                closeLightbox();
+            }
+        });
+    }
+
+    const accessForms = document.querySelectorAll('form[data-ajax="true"]');
+    accessForms.forEach((form) => {
+        const checkboxes = form.querySelectorAll('input[type="checkbox"]');
+        const fallbackSubmit = form.querySelector('.fallback-submit');
+        
+        if (fallbackSubmit) {
+            fallbackSubmit.style.display = 'none';
+        }
+
+        checkboxes.forEach((checkbox) => {
+            checkbox.addEventListener('change', async () => {
+                const formData = new FormData(form);
+                formData.append('ajax', 'true');
+                
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    
+                    const data = await response.json();
+                    if (data.status !== 'success') {
+                        console.error('Access update failed:', data.status);
+                        // Revert checkbox if failed
+                        checkbox.checked = !checkbox.checked;
+                    }
+                } catch (error) {
+                    console.error('Error updating access:', error);
+                    // Revert checkbox if failed
+                    checkbox.checked = !checkbox.checked;
+                }
+            });
         });
     });
 

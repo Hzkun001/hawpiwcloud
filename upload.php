@@ -3,56 +3,21 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
-authRequireAdmin();
-
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
-$appMaxFileSize = 2 * 1024 * 1024;
-
-function redirectWithStatus(string $status): void
-{
-    header('Location: dashboard.php?status=' . rawurlencode($status));
+$currentUser = authRequireLogin();
+if (!authCanUpload($currentUser)) {
+    header('Location: index.php?status=error_forbidden');
     exit;
 }
 
-function iniSizeToBytes(string $value): int
+$uploadDir = storageUploadDir();
+
+function redirectWithStatus(string $status): void
 {
-    $value = trim($value);
-    $unit = strtolower(substr($value, -1));
-    $number = (int)$value;
-
-    return match ($unit) {
-        'g' => $number * 1024 * 1024 * 1024,
-        'm' => $number * 1024 * 1024,
-        'k' => $number * 1024,
-        default => (int)$value,
-    };
-}
-
-function effectiveServerUploadLimitBytes(): int
-{
-    $uploadMaxSize = iniSizeToBytes((string) ini_get('upload_max_filesize'));
-    $postMaxSize = iniSizeToBytes((string) ini_get('post_max_size'));
-
-    $limits = array_filter([$uploadMaxSize, $postMaxSize], static fn(int $bytes): bool => $bytes > 0);
-
-    if ($limits === []) {
-        return 0;
-    }
-
-    return min($limits);
-}
-
-function requestBodyExceededPostMaxSize(): bool
-{
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        return false;
-    }
-
-    $contentLength = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
-    $postMaxSize = iniSizeToBytes((string) ini_get('post_max_size'));
-
-    return $contentLength > 0 && $postMaxSize > 0 && $contentLength > $postMaxSize;
+    $target = authCanUseDashboard(authCurrentUser()) ? 'dashboard.php' : 'index.php';
+    header('Location: ' . $target . '?status=' . rawurlencode($status));
+    exit;
 }
 
 function redirectWithSecurityError(): void
@@ -86,7 +51,7 @@ if (!isValidCsrfToken($_POST['csrf_token'] ?? null)) {
     redirectWithSecurityError();
 }
 
-if (requestBodyExceededPostMaxSize()) {
+if (storageRequestBodyExceededPostMaxSize()) {
     redirectWithStatus('error_server_limit');
 }
 
@@ -107,14 +72,12 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
 }
 
 // Batas ukuran file: 2 MB
-$maxFileSize = $appMaxFileSize;
-$effectiveServerLimit = effectiveServerUploadLimitBytes();
-if ($effectiveServerLimit > 0 && (int) $file['size'] > $effectiveServerLimit) {
-    redirectWithStatus('error_server_limit');
+if ((int)$file['size'] > storageEffectiveUploadLimitBytes()) {
+    redirectWithStatus('error_size');
 }
 
-if ((int)$file['size'] > $maxFileSize) {
-    redirectWithStatus('error_size');
+if (!storageIsAllowedUpload($file)) {
+    redirectWithStatus('error_type');
 }
 
 // Ambil nama file asli dan bersihkan karakter berbahaya
@@ -138,6 +101,10 @@ if (file_exists($targetPath)) {
 
 // Pindahkan file ke folder uploads
 if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+    storageRegisterFile($uploadDir, $sanitizedFileName, $currentUser, [
+        'viewerAccess' => isset($_POST['viewer_access']),
+        'guestAccess' => isset($_POST['guest_access']),
+    ]);
     redirectWithStatus('upload_success');
 }
 

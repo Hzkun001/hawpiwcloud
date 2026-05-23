@@ -3,14 +3,16 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
-authRequireAdmin();
+$currentUser = authRequireLogin();
 
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+$uploadDir = storageUploadDir();
 
 function redirectWithStatus(string $status): void
 {
-    header('Location: dashboard.php?status=' . rawurlencode($status));
+    $target = authCanUseDashboard(authCurrentUser()) ? 'dashboard.php' : 'index.php';
+    header('Location: ' . $target . '?status=' . rawurlencode($status));
     exit;
 }
 
@@ -39,8 +41,22 @@ if (!is_file($filePath) || !file_exists($filePath)) {
     redirectWithStatus('error');
 }
 
+$metadata = storageFileMetadata(storageReadMetadata($uploadDir), $fileName);
+$file = [
+    'name' => $fileName,
+    'owner' => $metadata['owner'],
+    'viewerAccess' => $metadata['viewerAccess'],
+    'guestAccess' => $metadata['guestAccess'],
+    'uploadedByRole' => $metadata['uploadedByRole'],
+];
+
+if (!authCanDeleteFile($currentUser, $file)) {
+    redirectWithStatus('error_forbidden');
+}
+
 // Hapus file
 if (unlink($filePath)) {
+    storageRemoveFileMetadata($uploadDir, $fileName);
     redirectWithStatus('delete_success');
 }
 

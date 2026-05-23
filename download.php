@@ -2,10 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
-authRequireLogin();
+$currentUser = authRequireLogin();
 
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+$uploadDir = storageUploadDir();
 
 if (!isset($_GET['file']) || $_GET['file'] === '') {
     http_response_code(400);
@@ -23,13 +24,27 @@ if (!is_file($filePath) || !file_exists($filePath)) {
     exit;
 }
 
+$metadata = storageFileMetadata(storageReadMetadata($uploadDir), $fileName);
+$file = [
+    'name' => $fileName,
+    'owner' => $metadata['owner'],
+    'viewerAccess' => $metadata['viewerAccess'],
+    'guestAccess' => $metadata['guestAccess'],
+    'uploadedByRole' => $metadata['uploadedByRole'],
+];
+
+if (!authCanDownloadFile($currentUser, $file)) {
+    http_response_code(403);
+    echo 'Anda tidak memiliki akses untuk mengunduh file ini.';
+    exit;
+}
+
 // Tentukan tipe MIME
 $mimeType = 'application/octet-stream';
 if (function_exists('finfo_open')) {
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     if ($finfo !== false) {
         $detectedMimeType = finfo_file($finfo, $filePath);
-        finfo_close($finfo);
 
         if (is_string($detectedMimeType) && $detectedMimeType !== '') {
             $mimeType = $detectedMimeType;

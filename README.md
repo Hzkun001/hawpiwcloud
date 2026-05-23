@@ -1,6 +1,6 @@
 # hawpiwcloud
 
-hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk mengunggah, melihat pratinjau, mengunduh, dan menghapus file langsung dari browser. Aplikasi ini tidak memakai database; semua berkas disimpan di folder `uploads/` dan dikelola dari satu dasbor yang responsif dan bersih.
+hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk mengunggah, melihat pratinjau, mengunduh, dan menghapus file langsung dari browser. Aplikasi ini tidak memakai database; semua berkas disimpan di folder `uploads/` dan metadata pemilik file disimpan di `uploads/.metadata.json`.
 
 ## Fitur
 
@@ -9,8 +9,14 @@ hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk meng
 - Daftar berkas tersimpan dengan informasi ukuran dan waktu perubahan.
 - Unduh berkas langsung dari tabel daftar file.
 - Hapus berkas dengan konfirmasi sebelum tindakan dijalankan.
+- Halaman login langsung dengan informasi akun dan level pengguna.
+- Role Admin, User, Viewer, dan Guest dengan kewenangan berbeda.
+- Admin dapat melihat tabel penyimpanan per user dan mengatur file untuk tabel Viewer/Guest.
+- Admin dapat membuat banyak akun baru dari dashboard.
+- Guest hanya dapat melihat file pada tabel khusus Guest tanpa mengunduh.
 - Proteksi CSRF pada form unggah dan hapus.
-- Validasi ukuran unggahan dengan batas maksimal 20 MB per berkas.
+- Validasi ukuran unggahan dengan batas maksimal 2 MB per berkas.
+- Validasi jenis file: JPG, PNG, GIF, WEBP, PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, CSV, ZIP, dan RAR.
 
 ## Kebutuhan
 
@@ -25,7 +31,7 @@ hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk meng
 Jalankan perintah berikut dari root proyek:
 
 ```bash
-php -d upload_max_filesize=20M -d post_max_size=24M -S localhost:8000
+php -d upload_max_filesize=2M -d post_max_size=3M -S localhost:8000
 ```
 
 Lalu buka:
@@ -43,21 +49,36 @@ http://localhost:8000
 
 ## Cara Menggunakan
 
-1. Buka halaman utama aplikasi.
-2. Pilih file melalui area unggah atau seret file ke dropzone.
-3. Cek pratinjau file di panel kanan.
-4. Tekan tombol unggah untuk menyimpan file.
-5. File yang berhasil diunggah akan muncul di tabel berkas tersimpan.
-6. Gunakan tombol unduh untuk mengambil file atau tombol hapus untuk menghapusnya.
+1. Buka aplikasi dan login sebagai admin, user, atau viewer.
+2. Admin dapat mengelola semua file dan melihat tabel penyimpanan setiap user dari dashboard.
+3. Admin dapat menandai file mana yang masuk ke tabel khusus Viewer dan Guest.
+4. User dapat mengunggah, mengunduh, dan menghapus file miliknya sendiri.
+5. Viewer hanya dapat melihat dan mengunduh file yang ditandai untuk Viewer.
+6. Guest membuka `guest.php` dan hanya dapat melihat file yang ditandai untuk Guest tanpa tombol download.
+
+## Akun Demo
+
+```text
+admin  / admin123  - Admin
+user   / user123   - User
+viewer / viewer123 - Viewer
+```
 
 ## Struktur Proyek
 
 ```text
 cloud-storage/
 ├── index.php
+├── auth.php
+├── storage.php
+├── login.php
+├── guest.php
+├── logout.php
+├── users.php
 ├── upload.php
 ├── download.php
 ├── delete.php
+├── access.php
 ├── assets/
 │   ├── app.js
 │   └── styles.css
@@ -70,19 +91,22 @@ cloud-storage/
 - Semua nama file dibersihkan agar karakter berbahaya diganti dengan garis bawah.
 - Jika nama file sudah ada, sistem akan menambahkan timestamp agar file lama tidak tertimpa.
 - File yang diunggah disimpan langsung ke folder `uploads/` tanpa database.
+- Metadata pemilik, akses Viewer, dan akses Guest disimpan di `uploads/.metadata.json`.
+- Akun tambahan buatan admin disimpan di `users.json`.
+- File lama tanpa metadata dianggap milik admin dan dapat dilihat Viewer, tetapi tidak otomatis masuk tabel Guest.
 - Pratinjau gambar ditangani di sisi frontend, sedangkan file non-gambar tetap bisa diunggah dan dikelola.
 
 ## Batas Unggahan
 
 Konfigurasi saat ini menggunakan batas berikut:
 
-- `upload_max_filesize = 20M`
-- `post_max_size = 24M`
-- Batas validasi aplikasi: 20 MB per file
+- `upload_max_filesize = 2M`
+- `post_max_size = 3M`
+- Batas validasi aplikasi: 2 MB per file
 
-### Jika masih mentok di bawah 20 MB
+### Jika masih mentok di bawah 2 MB
 
-Jika unggahan sudah gagal saat 5 MB atau ukuran lain di bawah 20 MB, berarti batas efektif server masih lebih kecil dari konfigurasi aplikasi.
+Jika unggahan gagal di bawah 2 MB, berarti batas efektif server masih lebih kecil dari konfigurasi aplikasi.
 
 Hal yang perlu dicek:
 
@@ -102,6 +126,8 @@ Antarmuka aplikasi menggunakan gaya dasbor modern dengan:
 - Hero section dan navigasi yang jelas.
 - Panel unggah dengan area drag and drop.
 - Tabel berkas tersimpan.
+- Tabel penyimpanan per user untuk admin.
+- Informasi level pengguna pada halaman login.
 - Bagian FAQ dan penjelasan alur penggunaan.
 
 ## Keamanan
@@ -109,16 +135,17 @@ Antarmuka aplikasi menggunakan gaya dasbor modern dengan:
 - Form unggah dan hapus memakai token CSRF.
 - File diakses melalui skrip unduh agar nama file divalidasi.
 - Operasi hapus hanya menerima request `POST`.
+- Upload, download, dan delete divalidasi ulang di backend berdasarkan role pengguna.
+- Guest tidak melewati skrip unduh karena halaman Guest tidak menyediakan link download.
 
 ## Pengembangan Lanjutan
 
 Jika ingin mengembangkan proyek ini, beberapa ide berikut bisa ditambahkan:
 
-- Filter tipe file yang diizinkan.
 - Paging atau pencarian pada daftar file.
 - Preview khusus untuk PDF dan dokumen office.
 - Penyimpanan metadata file ke database.
-- Autentikasi pengguna untuk membatasi akses.
+- Panel admin untuk menambah, mengubah, dan menghapus akun secara dinamis.
 
 ## Lisensi
 

@@ -3,16 +3,35 @@
 declare(strict_types=1);
 
 const HAWPIWCLOUD_ACCOUNTS = [
-    'user' => [
-        'password' => 'user123',
-        'role' => 'user',
-        'name' => 'User Biasa',
-    ],
     'admin' => [
         'password' => 'admin123',
         'role' => 'admin',
         'name' => 'Administrator',
     ],
+    'user' => [
+        'password' => 'user123',
+        'role' => 'user',
+        'name' => 'User Biasa',
+    ],
+    'viewer' => [
+        'password' => 'viewer123',
+        'role' => 'viewer',
+        'name' => 'Viewer',
+    ],
+];
+
+const HAWPIWCLOUD_ROLE_LABELS = [
+    'admin' => 'Admin',
+    'user' => 'User',
+    'viewer' => 'Viewer',
+    'guest' => 'Guest',
+];
+
+const HAWPIWCLOUD_ROLE_DESCRIPTIONS = [
+    'admin' => 'Mengelola semua pengguna dan semua file.',
+    'user' => 'Mengunggah, mengunduh, dan menghapus file miliknya sendiri.',
+    'viewer' => 'Hanya melihat dan mengunduh file tertentu dari admin.',
+    'guest' => 'Akses terbatas atau hanya melihat halaman tertentu.',
 ];
 
 function authStartSession(): void
@@ -22,11 +41,113 @@ function authStartSession(): void
     }
 }
 
+function authUsersPath(): string
+{
+    return __DIR__ . DIRECTORY_SEPARATOR . 'users.json';
+}
+
+function authStoredAccounts(): array
+{
+    $path = authUsersPath();
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $raw = file_get_contents($path);
+    if (!is_string($raw) || $raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+
+    return is_array($decoded) ? $decoded : [];
+}
+
+function authWriteStoredAccounts(array $accounts): bool
+{
+    $encoded = json_encode($accounts, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if (!is_string($encoded)) {
+        return false;
+    }
+
+    return file_put_contents(authUsersPath(), $encoded . PHP_EOL, LOCK_EX) !== false;
+}
+
+function authAccounts(): array
+{
+    return array_replace(HAWPIWCLOUD_ACCOUNTS, authStoredAccounts());
+}
+
+function authIsValidUsername(string $username): bool
+{
+    return (bool) preg_match('/^[A-Za-z0-9_-]{3,32}$/', $username);
+}
+
+function authIsValidRole(string $role): bool
+{
+    return in_array($role, ['admin', 'user', 'viewer'], true);
+}
+
+function authRoleDescription(string $role): string
+{
+    return HAWPIWCLOUD_ROLE_DESCRIPTIONS[$role] ?? HAWPIWCLOUD_ROLE_DESCRIPTIONS['guest'];
+}
+
+function authCreateAccount(string $username, string $password, string $name, string $role): string
+{
+    $username = trim($username);
+    $name = trim($name);
+
+    if (!authIsValidUsername($username)) {
+        return 'invalid_username';
+    }
+
+    if (strlen($password) < 6) {
+        return 'invalid_password';
+    }
+
+    if (!authIsValidRole($role)) {
+        return 'invalid_role';
+    }
+
+    $accounts = authAccounts();
+    if (isset($accounts[$username])) {
+        return 'duplicate';
+    }
+
+    $storedAccounts = authStoredAccounts();
+    $storedAccounts[$username] = [
+        'passwordHash' => password_hash($password, PASSWORD_DEFAULT),
+        'role' => $role,
+        'name' => $name !== '' ? $name : $username,
+        'createdAt' => date(DATE_ATOM),
+    ];
+
+    return authWriteStoredAccounts($storedAccounts) ? 'success' : 'error';
+}
+
+function authDeleteAccount(string $username): string
+{
+    $username = trim($username);
+    if ($username === 'admin') {
+        return 'protected';
+    }
+
+    $storedAccounts = authStoredAccounts();
+    if (!isset($storedAccounts[$username])) {
+        return 'missing';
+    }
+
+    unset($storedAccounts[$username]);
+
+    return authWriteStoredAccounts($storedAccounts) ? 'success' : 'error';
+}
+
 function authCurrentUser(): ?array
 {
     authStartSession();
 
-    $accounts = HAWPIWCLOUD_ACCOUNTS;
+    $accounts = authAccounts();
     $username = $_SESSION['auth_username'] ?? null;
     if (!is_string($username) || !isset($accounts[$username])) {
         return null;
@@ -46,17 +167,84 @@ function authIsAdmin(): bool
     return $user !== null && $user['role'] === 'admin';
 }
 
+function authRoleLabel(?array $user): string
+{
+    $role = $user['role'] ?? 'guest';
+
+    return HAWPIWCLOUD_ROLE_LABELS[$role] ?? 'Guest';
+}
+
+function authCanUseDashboard(?array $user): bool
+{
+    return $user !== null && in_array($user['role'], ['admin', 'user'], true);
+}
+
+function authCanUpload(?array $user): bool
+{
+    return $user !== null && in_array($user['role'], ['admin', 'user'], true);
+}
+
+function authCanViewFile(?array $user, array $file): bool
+{
+    if ($user === null) {
+        return (bool) ($file['guestAccess'] ?? false);
+    }
+
+    if ($user['role'] === 'admin') {
+        return true;
+    }
+
+    if ($user['role'] === 'user') {
+        return ($file['owner'] ?? '') === $user['username'];
+    }
+
+    if ($user['role'] === 'viewer') {
+        return (bool) ($file['viewerAccess'] ?? false);
+    }
+
+    return false;
+}
+
+function authCanDownloadFile(?array $user, array $file): bool
+{
+    if ($user === null) {
+        return false;
+    }
+
+    return authCanViewFile($user, $file);
+}
+
+function authCanDeleteFile(?array $user, array $file): bool
+{
+    if ($user === null) {
+        return false;
+    }
+
+    if ($user['role'] === 'admin') {
+        return true;
+    }
+
+    return $user['role'] === 'user' && ($file['owner'] ?? '') === $user['username'];
+}
+
 function authLogin(string $username, string $password): bool
 {
     authStartSession();
 
-    $accounts = HAWPIWCLOUD_ACCOUNTS;
+    $accounts = authAccounts();
     if (!isset($accounts[$username])) {
         return false;
     }
 
     $account = $accounts[$username];
-    if (!hash_equals($account['password'], $password)) {
+    $isValidPassword = false;
+    if (isset($account['passwordHash']) && is_string($account['passwordHash'])) {
+        $isValidPassword = password_verify($password, $account['passwordHash']);
+    } elseif (isset($account['password']) && is_string($account['password'])) {
+        $isValidPassword = hash_equals($account['password'], $password);
+    }
+
+    if (!$isValidPassword) {
         return false;
     }
 
@@ -97,5 +285,5 @@ function authRequireAdmin(): array
 
 function authHomeForUser(array $user): string
 {
-    return $user['role'] === 'admin' ? 'dashboard.php' : 'index.php';
+    return authCanUseDashboard($user) ? 'dashboard.php' : 'index.php';
 }

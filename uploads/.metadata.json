@@ -1,0 +1,17 @@
+{
+    "zjh0aucl.png": {
+        "owner": "admin",
+        "uploadedByRole": "admin",
+        "viewerAccess": true,
+        "guestAccess": true,
+        "uploadedAt": "2026-05-15T11:50:26+00:00",
+        "updatedAt": "2026-05-15T11:50:43+00:00"
+    },
+    "1.pdf": {
+        "owner": "user",
+        "uploadedByRole": "user",
+        "viewerAccess": false,
+        "guestAccess": false,
+        "uploadedAt": "2026-05-15T12:26:52+00:00"
+    }
+}

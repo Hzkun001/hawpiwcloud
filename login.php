@@ -14,7 +14,7 @@ if ($currentUser !== null) {
 
 $status = $_GET['status'] ?? '';
 $errorMessage = '';
-$assetVersion = '20260508-auth-v2';
+$assetVersion = (string) filemtime(__DIR__ . DIRECTORY_SEPARATOR . 'assets' . DIRECTORY_SEPARATOR . 'styles.css');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim((string) ($_POST['username'] ?? ''));
@@ -51,9 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </a>
 
             <nav class="auth-menu" aria-label="Login navigation">
-                <a href="#accounts">Akun</a>
-                <a href="#login-title">Login</a>
-                <a class="auth-nav-button" href="#login-form">Masuk</a>
+                <a href="guest.php">Guest</a>
             </nav>
         </header>
 
@@ -64,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <span>hawpiw</span>
                     cloud
                 </h1>
-                <p>Akses file tersimpan sebagai user biasa, atau masuk sebagai admin untuk membuka dashboard upload dan pengelolaan berkas.</p>
+                <p>Akses file tersimpan sesuai level pengguna. Pilih akun demo di bawah, lalu login untuk masuk ke halaman yang sesuai.</p>
 
                 <?php if ($errorMessage !== ''): ?>
                     <div class="auth-alert <?= $status === 'logged_out' ? 'success' : 'error'; ?>" role="status" aria-live="polite">
@@ -76,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form class="auth-form" action="login.php" method="post" id="login-form">
                     <label>
                         <span>Username</span>
-                        <input type="text" name="username" autocomplete="username" placeholder="user atau admin" required>
+                        <input type="text" name="username" autocomplete="username" placeholder="admin, user, atau viewer" required>
                     </label>
 
                     <label>
@@ -86,6 +84,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <button class="auth-submit" type="submit">Login ke hawpiwcloud</button>
                 </form>
+
+                
+                <a class="auth-guest-link" href="guest.php">Masuk sebagai Guest</a>
+                <div class="credential-grid" id="accounts" aria-label="Akun demo dan kewenangan">
+                    <article>
+                        <span>Admin</span>
+                        <strong>admin / admin123</strong>
+                        <p>Mengelola semua pengguna dan semua file.</p>
+                    </article>
+
+                    <article>
+                        <span>User</span>
+                        <strong>user / user123</strong>
+                        <p>Mengunggah, mengunduh, dan menghapus file miliknya sendiri.</p>
+                    </article>
+
+                    <article>
+                        <span>Viewer</span>
+                        <strong>viewer / viewer123</strong>
+                        <p>Melihat dan mengunduh file tertentu yang dibagikan.</p>
+                    </article>
+                </div>
             </div>
 
             <div class="auth-visual" aria-hidden="true">
