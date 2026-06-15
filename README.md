@@ -2,6 +2,18 @@
 
 hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk mengunggah, melihat pratinjau, mengunduh, dan menghapus file langsung dari browser. Aplikasi ini tidak memakai database; semua berkas disimpan di folder `uploads/` dan metadata pemilik file disimpan di `uploads/.metadata.json`.
 
+## Temuan Dari Hosting
+
+Saat dijelajahi di `https://cloud.hfzard.surf`, aplikasi yang aktif saat ini menampilkan:
+
+- Halaman publik `index.php` berisi ringkasan penyimpanan, daftar file, unggah cepat, alur singkat, dan FAQ.
+- Halaman login `login.php` menyediakan akun demo untuk admin, user, dan viewer.
+- Dashboard admin memiliki menu ringkasan, unggah berkas, kelola berkas, trash, manajemen user, dan status backup.
+- Halaman unggah mendukung drag and drop, pratinjau file, dan penandaan file untuk tabel Viewer.
+- Halaman kelola berkas menampilkan file per pemilik, pratinjau, unduh, hapus, dan toggle akses Viewer.
+- Halaman trash menampung file yang bisa dipulihkan sebelum dihapus permanen.
+- Halaman status backup menampilkan restore point, verifikasi SHA-256, retention, restore versi, dan backup manual.
+
 ## Fitur
 
 - Unggah berkas melalui form atau drag and drop.
@@ -57,9 +69,9 @@ http://localhost:8000
 
 Isi alamat produksi berikut sebelum pengumpulan:
 
-- URL aplikasi: `https://<domain-atau-subdomain-aktif>`
+- URL aplikasi: `https://cloud.hfzard.surf`
 - Document root: folder proyek `hawpiwcloud`
-- Akses login: `login.php`
+- Akses login: [login.php](login.php)
 
 ## Cara Menggunakan
 
