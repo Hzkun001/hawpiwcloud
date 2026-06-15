@@ -6,6 +6,7 @@
     const uploadForm = document.getElementById('upload-form');
     const uploadFeedback = document.getElementById('upload-feedback');
     const previewEmpty = document.getElementById('preview-empty');
+    const previewFile = document.querySelector('.preview-shell');
     const previewImage = document.getElementById('preview-image');
     const previewIcon = document.getElementById('preview-icon');
     const previewName = document.getElementById('preview-name');
@@ -18,7 +19,7 @@
         .split(',')
         .map((item) => item.trim().replace(/^\./, '').toLowerCase())
         .filter(Boolean);
-    const hasUploadUi = Boolean(fileInput && dropzone && fileChip && uploadForm && previewEmpty && previewImage && previewIcon && previewName && previewDetails && clearButton);
+    const hasUploadUi = Boolean(fileInput && dropzone && fileChip && uploadForm && previewEmpty && previewFile && previewImage && previewIcon && previewName && previewDetails && clearButton);
     let objectUrl = null;
 
     const formatBytes = (bytes) => {
@@ -79,10 +80,11 @@
         fileChip.textContent = 'Belum ada berkas yang dipilih';
         previewName.textContent = 'Belum ada berkas yang dipilih';
         previewDetails.textContent = 'Ukuran dan jenis berkas akan tampil di sini.';
-        previewImage.style.display = 'none';
-        previewIcon.style.display = 'none';
+        previewImage.hidden = true;
+        previewIcon.hidden = true;
+        previewFile.hidden = true;
         previewImage.src = '';
-        previewEmpty.style.display = 'grid';
+        previewEmpty.hidden = false;
         clearUploadFeedback();
     };
 
@@ -95,7 +97,8 @@
         setFileChipLabel(file.name);
         previewName.textContent = file.name;
         previewDetails.textContent = `${formatBytes(file.size)} • ${file.type || 'Jenis berkas tidak dikenal'}`;
-        previewEmpty.style.display = 'none';
+        previewEmpty.hidden = true;
+        previewFile.hidden = false;
 
         if (objectUrl) {
             URL.revokeObjectURL(objectUrl);
@@ -105,11 +108,11 @@
         if (file.type && file.type.startsWith('image/')) {
             objectUrl = URL.createObjectURL(file);
             previewImage.src = objectUrl;
-            previewImage.style.display = 'block';
-            previewIcon.style.display = 'none';
+            previewImage.hidden = false;
+            previewIcon.hidden = true;
         } else {
-            previewImage.style.display = 'none';
-            previewIcon.style.display = 'flex';
+            previewImage.hidden = true;
+            previewIcon.hidden = false;
         }
 
         if (!isFileWithinLimit(file)) {

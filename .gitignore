@@ -1,0 +1,4 @@
+/trash/*
+!/trash/.gitkeep
+/users.json
+

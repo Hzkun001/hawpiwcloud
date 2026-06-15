@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap');
+
+:root {
+    --bg: #edf2f7;
+    --surface: #ffffff;
+    --surface-strong: #ffffff;
+    --line: #dbe3ee;
+    --text: #182230;
+    --muted: #66758a;
+    --indigo: #4f46e5;
+    --indigo-dark: #3730a3;
+    --indigo-soft: #eef2ff;
+    --slate: #475569;
+    --danger: #dc2626;
+    --danger-soft: #fef2f2;
+    --success: #059669;
+    --success-soft: #ecfdf5;
+    --shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+    --shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.06);
+    --radius-xl: 28px;
+    --radius-lg: 18px;
+    --radius-md: 14px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 32px;
+    --space-8: 40px;
+    --space-section: var(--space-6);
+    --space-section-lg: var(--space-7);
+    --font-body: 'Inter', sans-serif;
+    --font-display: 'Manrope', sans-serif;
+}

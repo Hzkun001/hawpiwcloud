@@ -1,0 +1,28 @@
+.data-table {
+    width: 100%;
+    min-width: 920px;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.data-table th,
+.data-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 0.8rem;
+    text-align: left;
+    vertical-align: top;
+}
+
+.data-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.data-table tr:last-child td {
+    border-bottom: 0;
+}

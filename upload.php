@@ -7,6 +7,7 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
 $currentUser = authRequireLogin();
 if (!authCanUpload($currentUser)) {
+    authLogAudit('upload', 'denied', $currentUser, ['reason' => 'role_restricted']);
     header('Location: index.php?status=error_forbidden');
     exit;
 }
@@ -15,14 +16,22 @@ $uploadDir = storageUploadDir();
 
 function redirectWithStatus(string $status): void
 {
-    $target = authCanUseDashboard(authCurrentUser()) ? 'dashboard.php' : 'index.php';
+    $user = authCurrentUser();
+    if (authCanUseDashboard($user)) {
+        $target = 'dashboard-upload.php';
+    } else {
+        $target = 'index.php';
+    }
+
     header('Location: ' . $target . '?status=' . rawurlencode($status));
     exit;
 }
 
 function redirectWithSecurityError(): void
 {
-    header('Location: dashboard.php?status=error_security');
+    $target = authCanUseDashboard(authCurrentUser()) ? 'dashboard-upload.php' : 'index.php';
+
+    header('Location: ' . $target . '?status=error_security');
     exit;
 }
 
@@ -73,10 +82,12 @@ if ($file['error'] !== UPLOAD_ERR_OK) {
 
 // Batas ukuran file: 2 MB
 if ((int)$file['size'] > storageEffectiveUploadLimitBytes()) {
+    authLogAudit('upload', 'denied', $currentUser, ['reason' => 'size_limit', 'file' => (string) $file['name']]);
     redirectWithStatus('error_size');
 }
 
 if (!storageIsAllowedUpload($file)) {
+    authLogAudit('upload', 'denied', $currentUser, ['reason' => 'file_type', 'file' => (string) $file['name']]);
     redirectWithStatus('error_type');
 }
 
@@ -103,9 +114,12 @@ if (file_exists($targetPath)) {
 if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     storageRegisterFile($uploadDir, $sanitizedFileName, $currentUser, [
         'viewerAccess' => isset($_POST['viewer_access']),
-        'guestAccess' => isset($_POST['guest_access']),
     ]);
+    storageCaptureFileVersion($uploadDir, $sanitizedFileName, ['reason' => 'upload', 'owner' => $currentUser['username']]);
+    authLogAudit('upload', 'success', $currentUser, ['file' => $sanitizedFileName, 'size' => (int) $file['size']]);
     redirectWithStatus('upload_success');
 }
+
+authLogAudit('upload', 'failed', $currentUser, ['file' => $sanitizedFileName]);
 
 redirectWithStatus('error_permissions');

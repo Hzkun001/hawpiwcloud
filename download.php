@@ -29,11 +29,11 @@ $file = [
     'name' => $fileName,
     'owner' => $metadata['owner'],
     'viewerAccess' => $metadata['viewerAccess'],
-    'guestAccess' => $metadata['guestAccess'],
     'uploadedByRole' => $metadata['uploadedByRole'],
 ];
 
 if (!authCanDownloadFile($currentUser, $file)) {
+    authLogAudit('download', 'denied', $currentUser, ['file' => $fileName]);
     http_response_code(403);
     echo 'Anda tidak memiliki akses untuk mengunduh file ini.';
     exit;
@@ -61,4 +61,5 @@ header('Pragma: public');
 header('Expires: 0');
 
 readfile($filePath);
+authLogAudit('download', 'success', $currentUser, ['file' => $fileName, 'size' => filesize($filePath)]);
 exit;

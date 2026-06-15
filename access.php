@@ -7,7 +7,8 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
 $currentUser = authRequireLogin();
 if (!in_array($currentUser['role'], ['admin', 'user'], true)) {
-    redirectWithAccessStatus('error_forbidden');
+    header('Location: dashboard-files.php?status=error_forbidden');
+    exit;
 }
 
 $uploadDir = storageUploadDir();
@@ -22,7 +23,7 @@ function respond(string $status, bool $isAjax, string $fallbackStatus = ''): voi
     }
     
     $redirectStatus = $fallbackStatus !== '' ? $fallbackStatus : $status;
-    header('Location: dashboard.php?status=' . rawurlencode($redirectStatus) . '#files');
+    header('Location: dashboard-files.php?status=' . rawurlencode($redirectStatus));
     exit;
 }
 
@@ -62,4 +63,3 @@ if (storageUpdateFileAccess($uploadDir, $fileName, isset($_POST['viewer_access']
 }
 
 respond('error_permissions', $isAjax);
-

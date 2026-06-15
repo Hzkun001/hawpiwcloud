@@ -63,7 +63,6 @@ function storageFileMetadata(array $metadata, string $fileName): array
     return [
         'owner' => isset($item['owner']) && is_string($item['owner']) && $item['owner'] !== '' ? $item['owner'] : 'admin',
         'viewerAccess' => array_key_exists('viewerAccess', $item) ? (bool) $item['viewerAccess'] : $legacyShared,
-        'guestAccess' => array_key_exists('guestAccess', $item) ? (bool) $item['guestAccess'] : false,
         'uploadedByRole' => isset($item['uploadedByRole']) && is_string($item['uploadedByRole']) ? $item['uploadedByRole'] : 'admin',
     ];
 }
@@ -79,14 +78,13 @@ function storageRegisterFile(string $uploadDir, string $fileName, array $user, a
         'owner' => $user['username'] ?? 'admin',
         'uploadedByRole' => $user['role'] ?? 'admin',
         'viewerAccess' => $canSetAccess && (bool) ($access['viewerAccess'] ?? false),
-        'guestAccess' => $canSetAccess && (bool) ($access['guestAccess'] ?? false),
         'uploadedAt' => date(DATE_ATOM),
     ];
 
     return storageWriteMetadata($uploadDir, $metadata);
 }
 
-function storageUpdateFileAccess(string $uploadDir, string $fileName, bool $viewerAccess, bool $guestAccess): bool
+function storageUpdateFileAccess(string $uploadDir, string $fileName, bool $viewerAccess): bool
 {
     $metadata = storageReadMetadata($uploadDir);
     $current = storageFileMetadata($metadata, $fileName);
@@ -94,7 +92,6 @@ function storageUpdateFileAccess(string $uploadDir, string $fileName, bool $view
         'owner' => $current['owner'],
         'uploadedByRole' => $current['uploadedByRole'],
         'viewerAccess' => $viewerAccess,
-        'guestAccess' => $guestAccess,
         'updatedAt' => date(DATE_ATOM),
     ]);
 
@@ -106,6 +103,312 @@ function storageRemoveFileMetadata(string $uploadDir, string $fileName): void
     $metadata = storageReadMetadata($uploadDir);
     unset($metadata[$fileName]);
     storageWriteMetadata($uploadDir, $metadata);
+}
+
+function storageBackupBootstrapPath(): string
+{
+    return __DIR__ . DIRECTORY_SEPARATOR . 'backup' . DIRECTORY_SEPARATOR . 'bootstrap.php';
+}
+
+function storageBackupModuleAvailable(): bool
+{
+    return is_file(storageBackupBootstrapPath());
+}
+
+function storageDefaultTrashDir(): string
+{
+    $envTrashDir = getenv('TRASH_DIR');
+    if (is_string($envTrashDir) && trim($envTrashDir) !== '') {
+        return rtrim($envTrashDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    }
+
+    return __DIR__ . DIRECTORY_SEPARATOR . 'trash' . DIRECTORY_SEPARATOR;
+}
+
+function storageAvailableTrashName(string $trashDir, string $fileName): string
+{
+    $fileName = basename($fileName);
+    if (!file_exists($trashDir . $fileName)) {
+        return $fileName;
+    }
+
+    $info = pathinfo($fileName);
+    $extension = isset($info['extension']) && is_string($info['extension']) && $info['extension'] !== '' ? '.' . $info['extension'] : '';
+    $base = isset($info['filename']) && is_string($info['filename']) && $info['filename'] !== '' ? $info['filename'] : 'file';
+
+    do {
+        $candidate = $base . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(2)) . $extension;
+    } while (file_exists($trashDir . $candidate));
+
+    return $candidate;
+}
+
+function storageMoveFileToTrash(string $uploadDir, string $fileName, array $deletedBy): bool
+{
+    $allMetadata = storageReadMetadata($uploadDir);
+    $metadata = array_merge(
+        storageFileMetadata($allMetadata, $fileName),
+        isset($allMetadata[$fileName]) && is_array($allMetadata[$fileName]) ? $allMetadata[$fileName] : []
+    );
+
+    if (storageBackupModuleAvailable()) {
+        try {
+            require_once storageBackupBootstrapPath();
+            $config = BackupConfig::fromEnvironment(__DIR__);
+            (new FileVersionManager($config))->capture($uploadDir . $fileName, $fileName, ['reason' => 'before-trash', 'owner' => $metadata['owner'] ?? 'admin']);
+            $trash = new TrashManager($config);
+            $trash->moveFromUploads($fileName, $metadata, (string) ($deletedBy['username'] ?? 'unknown'));
+            storageRemoveFileMetadata($uploadDir, $fileName);
+
+            return true;
+        } catch (Throwable $exception) {
+            error_log('hawpiwcloud trash backup-module error: ' . $exception->getMessage());
+        }
+    }
+
+    try {
+        $source = $uploadDir . $fileName;
+        if (!is_file($source)) {
+            throw new RuntimeException('File sumber tidak ditemukan.');
+        }
+
+        $trashDir = storageTrashDir();
+        if (!is_dir($trashDir) && !mkdir($trashDir, 0755, true) && !is_dir($trashDir)) {
+            throw new RuntimeException('Direktori Trash tidak dapat dibuat.');
+        }
+
+        $storedName = storageAvailableTrashName($trashDir, $fileName);
+        $destination = $trashDir . $storedName;
+        if (!rename($source, $destination)) {
+            throw new RuntimeException('File gagal dipindahkan ke Trash.');
+        }
+
+        $trashMetadata = storageReadTrashMetadata();
+        $trashMetadata[$storedName] = array_merge($metadata, [
+            'originalName' => $fileName,
+            'storedName' => $storedName,
+            'deletedBy' => (string) ($deletedBy['username'] ?? 'unknown'),
+            'deletedAt' => date(DATE_ATOM),
+        ]);
+
+        if (!storageWriteTrashMetadata($trashMetadata)) {
+            rename($destination, $source);
+            throw new RuntimeException('Metadata Trash gagal ditulis.');
+        }
+
+        storageRemoveFileMetadata($uploadDir, $fileName);
+
+        return true;
+    } catch (Throwable $exception) {
+        error_log('hawpiwcloud trash error: ' . $exception->getMessage());
+
+        return false;
+    }
+}
+
+function storageTrashDir(): string
+{
+    $backupBootstrap = storageBackupBootstrapPath();
+    if (is_file($backupBootstrap)) {
+        require_once $backupBootstrap;
+
+        return BackupConfig::fromEnvironment(__DIR__)->trashDir . DIRECTORY_SEPARATOR;
+    }
+
+    return storageDefaultTrashDir();
+}
+
+function storageTrashMetadataPath(): string
+{
+    return storageTrashDir() . '.metadata.json';
+}
+
+function storageReadTrashMetadata(): array
+{
+    $metadataPath = storageTrashMetadataPath();
+    if (!is_file($metadataPath)) {
+        return [];
+    }
+
+    $decoded = json_decode((string) file_get_contents($metadataPath), true);
+
+    return is_array($decoded) ? $decoded : [];
+}
+
+function storageWriteTrashMetadata(array $metadata): bool
+{
+    $trashDir = storageTrashDir();
+    if (!is_dir($trashDir) && !mkdir($trashDir, 0755, true) && !is_dir($trashDir)) {
+        return false;
+    }
+
+    $encoded = json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if (!is_string($encoded)) {
+        return false;
+    }
+
+    return file_put_contents($trashDir . '.metadata.json', $encoded . PHP_EOL, LOCK_EX) !== false;
+}
+
+function storageCanManageTrashFile(array $user, array $trashFile): bool
+{
+    if (($user['role'] ?? '') === 'admin') {
+        return true;
+    }
+
+    return ($user['role'] ?? '') === 'user' && ($trashFile['owner'] ?? '') === ($user['username'] ?? '');
+}
+
+function storageListTrashFiles(?array $user = null): array
+{
+    $trashDir = storageTrashDir();
+    $metadata = storageReadTrashMetadata();
+    $files = [];
+
+    foreach ($metadata as $storedName => $item) {
+        if (!is_string($storedName) || !is_array($item)) {
+            continue;
+        }
+
+        $path = $trashDir . basename($storedName);
+        if (!is_file($path)) {
+            continue;
+        }
+
+        $trashFile = array_merge($item, [
+            'storedName' => basename($storedName),
+            'originalName' => isset($item['originalName']) && is_string($item['originalName']) ? $item['originalName'] : basename($storedName),
+            'owner' => isset($item['owner']) && is_string($item['owner']) ? $item['owner'] : 'admin',
+            'deletedBy' => isset($item['deletedBy']) && is_string($item['deletedBy']) ? $item['deletedBy'] : 'unknown',
+            'deletedAt' => isset($item['deletedAt']) && is_string($item['deletedAt']) ? $item['deletedAt'] : '',
+            'size' => filesize($path),
+            'modified' => filemtime($path),
+            'isImage' => storageIsPreviewableImage($path),
+        ]);
+
+        if ($user !== null && !storageCanManageTrashFile($user, $trashFile)) {
+            continue;
+        }
+
+        $files[] = $trashFile;
+    }
+
+    usort($files, static function (array $left, array $right): int {
+        $leftDeleted = isset($left['deletedAt']) ? strtotime((string) $left['deletedAt']) : false;
+        $rightDeleted = isset($right['deletedAt']) ? strtotime((string) $right['deletedAt']) : false;
+
+        return ($rightDeleted ?: 0) <=> ($leftDeleted ?: 0);
+    });
+
+    return $files;
+}
+
+function storageAvailableUploadName(string $uploadDir, string $fileName): string
+{
+    $fileName = basename($fileName);
+    if (!file_exists($uploadDir . $fileName)) {
+        return $fileName;
+    }
+
+    $info = pathinfo($fileName);
+    $extension = isset($info['extension']) && is_string($info['extension']) && $info['extension'] !== '' ? '.' . $info['extension'] : '';
+    $base = isset($info['filename']) && is_string($info['filename']) && $info['filename'] !== '' ? $info['filename'] : 'file';
+
+    do {
+        $candidate = $base . '_restored_' . date('Ymd_His') . '_' . bin2hex(random_bytes(2)) . $extension;
+    } while (file_exists($uploadDir . $candidate));
+
+    return $candidate;
+}
+
+function storageRestoreFileFromTrash(string $storedName, array $restoredBy): array
+{
+    $uploadDir = storageUploadDir();
+    $trashDir = storageTrashDir();
+    $storedName = basename($storedName);
+    $metadata = storageReadTrashMetadata();
+
+    if (!isset($metadata[$storedName]) || !is_array($metadata[$storedName])) {
+        throw new RuntimeException('File Trash tidak ditemukan.');
+    }
+
+    $trashFile = array_merge($metadata[$storedName], [
+        'storedName' => $storedName,
+        'owner' => isset($metadata[$storedName]['owner']) && is_string($metadata[$storedName]['owner']) ? $metadata[$storedName]['owner'] : 'admin',
+    ]);
+
+    if (!storageCanManageTrashFile($restoredBy, $trashFile)) {
+        throw new RuntimeException('Anda tidak memiliki akses untuk memulihkan file ini.');
+    }
+
+    $source = $trashDir . $storedName;
+    if (!is_file($source)) {
+        throw new RuntimeException('File Trash tidak tersedia di disk.');
+    }
+
+    $originalName = isset($metadata[$storedName]['originalName']) && is_string($metadata[$storedName]['originalName']) && $metadata[$storedName]['originalName'] !== ''
+        ? basename($metadata[$storedName]['originalName'])
+        : $storedName;
+    $restoredName = storageAvailableUploadName($uploadDir, $originalName);
+    $destination = $uploadDir . $restoredName;
+
+    if (!rename($source, $destination)) {
+        throw new RuntimeException('File gagal dipulihkan dari Trash.');
+    }
+
+    $uploadMetadata = storageReadMetadata($uploadDir);
+    $restoredMetadata = $metadata[$storedName];
+        unset($restoredMetadata['storedName'], $restoredMetadata['originalName'], $restoredMetadata['deletedBy'], $restoredMetadata['deletedAt']);
+        $uploadMetadata[$restoredName] = array_merge($restoredMetadata, [
+            'owner' => isset($restoredMetadata['owner']) && is_string($restoredMetadata['owner']) ? $restoredMetadata['owner'] : 'admin',
+            'uploadedByRole' => isset($restoredMetadata['uploadedByRole']) && is_string($restoredMetadata['uploadedByRole']) ? $restoredMetadata['uploadedByRole'] : 'admin',
+            'viewerAccess' => (bool) ($restoredMetadata['viewerAccess'] ?? false),
+            'restoredAt' => date(DATE_ATOM),
+            'restoredBy' => (string) ($restoredBy['username'] ?? 'unknown'),
+            'restoredFromTrash' => $storedName,
+    ]);
+
+    unset($metadata[$storedName]);
+    if (!storageWriteMetadata($uploadDir, $uploadMetadata) || !storageWriteTrashMetadata($metadata)) {
+        rename($destination, $source);
+        throw new RuntimeException('Metadata restore gagal ditulis.');
+    }
+
+    try {
+        $backupBootstrap = storageBackupBootstrapPath();
+        if (is_file($backupBootstrap)) {
+            require_once $backupBootstrap;
+            $config = BackupConfig::fromEnvironment(__DIR__);
+            (new BackupLogger($config))->audit('trash.restore', 'success', (string) ($restoredBy['username'] ?? 'unknown'), 'web', [
+                'storedName' => $storedName,
+                'restoredName' => $restoredName,
+            ]);
+        }
+    } catch (Throwable $exception) {
+        error_log('hawpiwcloud trash restore audit error: ' . $exception->getMessage());
+    }
+
+    return [
+        'storedName' => $storedName,
+        'restoredName' => $restoredName,
+    ];
+}
+
+function storageCaptureFileVersion(string $uploadDir, string $fileName, array $metadata = []): bool
+{
+    if (!storageBackupModuleAvailable()) {
+        return false;
+    }
+
+    try {
+        require_once storageBackupBootstrapPath();
+
+        return (new FileVersionManager(BackupConfig::fromEnvironment(__DIR__)))->capture($uploadDir . $fileName, $fileName, $metadata) !== null;
+    } catch (Throwable $exception) {
+        error_log('hawpiwcloud versioning error: ' . $exception->getMessage());
+
+        return false;
+    }
 }
 
 function storageIsPreviewableImage(string $filePath): bool
@@ -235,7 +538,6 @@ function storageListFiles(string $uploadDir, ?array $user = null): array
             'owner' => $fileMetadata['owner'],
             'uploadedByRole' => $fileMetadata['uploadedByRole'],
             'viewerAccess' => $fileMetadata['viewerAccess'],
-            'guestAccess' => $fileMetadata['guestAccess'],
         ];
 
         if (!authCanViewFile($user, $file)) {

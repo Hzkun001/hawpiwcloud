@@ -1,0 +1,9 @@
+/*
+ * Shared application styles.
+ *
+ * Page entries import this file first, then choose the components and
+ * page-specific rules required by their interface.
+ */
+@import url('./base/tokens.css');
+@import url('./base/reset.css');
+@import url('./base/utilities.css');

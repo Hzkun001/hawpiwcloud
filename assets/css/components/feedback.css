@@ -1,0 +1,23 @@
+.flash {
+    padding: 0.85rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.7rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.flash--success {
+    border-color: #bbf7d0;
+    background: #dcfce7;
+    color: #166534;
+}
+
+.flash--error {
+    border-color: #fecaca;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.text-muted {
+    color: #64748b;
+}

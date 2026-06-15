@@ -1,0 +1,25 @@
+.stack {
+    display: grid;
+    gap: var(--space-section);
+}
+
+.flow {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.flow-sm {
+    gap: var(--space-3);
+}
+
+.flow-lg {
+    gap: var(--space-section);
+}
+
+.shell>.cta-band+.stack {
+    margin-top: var(--space-section);
+}
+
+.shell>.panel+.panel {
+    margin-top: var(--space-section);
+}

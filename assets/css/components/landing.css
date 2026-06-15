@@ -1,0 +1,209 @@
+.how-section {
+    display: grid;
+    gap: 22px;
+    margin-top: 10px;
+}
+
+.how-header {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: 10px;
+    padding-top: 14px;
+}
+
+.how-header h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 3.2vw, 2.6rem);
+    letter-spacing: -0.05em;
+    font-weight: 900;
+    color: var(--text);
+}
+
+.how-header p {
+    margin: 0;
+    max-width: 640px;
+    color: var(--muted);
+    line-height: 1.68;
+    letter-spacing: -0.01em;
+}
+
+.steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.step-card {
+    background: #ffffff;
+    border: 1px solid #d6deeb;
+    border-radius: 22px;
+    padding: 20px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.step-card::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 4px;
+    background: linear-gradient(90deg, #f59e0b, #8b5cf6, #6366f1);
+}
+
+.step-pill {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+    color: #ffffff;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 0.95rem;
+}
+
+.step-card:nth-child(1) .step-pill {
+    background: #f59e0b;
+}
+
+.step-card:nth-child(2) .step-pill {
+    background: #8b5cf6;
+}
+
+.step-card:nth-child(3) .step-pill {
+    background: #6366f1;
+}
+
+.step-card h3 {
+    margin: 0 0 10px;
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    letter-spacing: -0.04em;
+    font-weight: 800;
+}
+
+.step-card p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.65;
+    letter-spacing: -0.005em;
+}
+
+.safety-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    align-items: start;
+    padding: 22px 24px;
+    border: 1px solid #7dd3a8;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #f0fdf4, #ecfdf5);
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.05);
+}
+
+.safety-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: #22c55e;
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(34, 197, 94, 0.24);
+}
+
+.safety-card h3 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    letter-spacing: -0.04em;
+    font-weight: 800;
+}
+
+.safety-card p {
+    margin: 0 0 12px;
+    color: #355c48;
+    line-height: 1.65;
+    letter-spacing: -0.005em;
+}
+
+.safety-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    color: #15803d;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.safety-list span::before {
+    content: '•';
+    margin-right: 8px;
+}
+
+.cta-band {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    padding: 36px 24px 42px;
+    border-radius: 28px;
+    background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 52%, #6d28d9 100%);
+    color: #ffffff;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(124, 58, 237, 0.26);
+}
+
+.cta-band h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 3vw, 2.4rem);
+    letter-spacing: -0.05em;
+    font-weight: 900;
+}
+
+.cta-band p {
+    margin: 0;
+    max-width: 560px;
+    color: rgba(255, 255, 255, 0.86);
+    line-height: 1.65;
+    letter-spacing: -0.005em;
+}
+
+.cta-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0 22px;
+    border-radius: 16px;
+    background: #f59e0b;
+    color: #1f2937;
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    box-shadow: 0 14px 28px rgba(245, 158, 11, 0.3);
+    transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.cta-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 34px rgba(245, 158, 11, 0.36);
+}
+
+.entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.entry-actions>* {
+    min-width: 180px;
+}
+

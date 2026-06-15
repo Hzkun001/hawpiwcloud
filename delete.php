@@ -11,7 +11,7 @@ $uploadDir = storageUploadDir();
 
 function redirectWithStatus(string $status): void
 {
-    $target = authCanUseDashboard(authCurrentUser()) ? 'dashboard.php' : 'index.php';
+    $target = authCanUseDashboard(authCurrentUser()) ? 'dashboard-files.php' : 'index.php';
     header('Location: ' . $target . '?status=' . rawurlencode($status));
     exit;
 }
@@ -46,18 +46,20 @@ $file = [
     'name' => $fileName,
     'owner' => $metadata['owner'],
     'viewerAccess' => $metadata['viewerAccess'],
-    'guestAccess' => $metadata['guestAccess'],
     'uploadedByRole' => $metadata['uploadedByRole'],
 ];
 
 if (!authCanDeleteFile($currentUser, $file)) {
+    authLogAudit('delete', 'denied', $currentUser, ['file' => $fileName]);
     redirectWithStatus('error_forbidden');
 }
 
-// Hapus file
-if (unlink($filePath)) {
-    storageRemoveFileMetadata($uploadDir, $fileName);
+// File tetap dapat dipulihkan sampai retention Trash berakhir.
+if (storageMoveFileToTrash($uploadDir, $fileName, $currentUser)) {
+    authLogAudit('delete', 'success', $currentUser, ['file' => $fileName, 'trash' => 'true']);
     redirectWithStatus('delete_success');
 }
+
+authLogAudit('delete', 'failed', $currentUser, ['file' => $fileName]);
 
 redirectWithStatus('error');

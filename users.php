@@ -8,7 +8,7 @@ $currentUser = authRequireAdmin();
 
 function redirectWithUserStatus(string $status): void
 {
-    header('Location: dashboard.php?status=' . rawurlencode($status) . '#users');
+    header('Location: dashboard-users.php?status=' . rawurlencode($status));
     exit;
 }
 
@@ -35,6 +35,12 @@ if ($action === 'create') {
         (string) ($_POST['role'] ?? '')
     );
 
+    authLogAudit('admin.user_create', $result === 'success' ? 'success' : 'failed', $currentUser, [
+        'target' => (string) ($_POST['username'] ?? ''),
+        'role' => (string) ($_POST['role'] ?? ''),
+        'result' => $result,
+    ]);
+
     redirectWithUserStatus('user_create_' . $result);
 }
 
@@ -44,7 +50,13 @@ if ($action === 'delete') {
         redirectWithUserStatus('user_delete_self');
     }
 
-    redirectWithUserStatus('user_delete_' . authDeleteAccount($username));
+    $result = authDeleteAccount($username);
+    authLogAudit('admin.user_delete', $result === 'success' ? 'success' : 'failed', $currentUser, [
+        'target' => $username,
+        'result' => $result,
+    ]);
+
+    redirectWithUserStatus('user_delete_' . $result);
 }
 
 redirectWithUserStatus('error');
