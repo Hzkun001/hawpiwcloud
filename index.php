@@ -6,10 +6,6 @@ require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
 $currentUser = authRequireLogin();
-
-requireAuthentication();
-
-$csrfToken = $_SESSION['csrf_token'];
 $uploadDir = storageUploadDir();
 $files = storageListFiles($uploadDir, $currentUser);
 
