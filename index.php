@@ -87,7 +87,7 @@ if ($status === 'upload_success') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 
 <head>
     <meta charset="UTF-8">
@@ -107,13 +107,15 @@ if ($status === 'upload_success') {
                 <span class="brand-name">hawpiwcloud</span>
             </a>
 
-            <nav class="site-nav" aria-label="Primary">
+            <nav class="site-nav" aria-label="Navigasi utama">
                 <a href="#files">Berkas</a>
-                <a href="#upload-panel">Upload</a>
+                <?php if (authCanUpload($currentUser)): ?>
+                    <a href="dashboard-upload.php">Unggah</a>
+                <?php endif; ?>
                 <?php if (authCanUseDashboard($currentUser)): ?>
                     <a href="dashboard.php">Dashboard</a>
                 <?php endif; ?>
-                <a class="action-button nav-cta" href="logout.php">Logout</a>
+                <a class="action-button nav-cta" href="logout.php">Keluar</a>
             </nav>
         </header>
 
@@ -246,9 +248,9 @@ if ($status === 'upload_success') {
                         <summary class="faq-question">
                             <span>Bagaimana cara mengunggah berkas?</span>
                             <span class="faq-icon" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
-                            <div class="faq-answer-inner">Unggah tersedia melalui panel Upload. File yang diunggah user menjadi milik akun tersebut.</div>
+                            <div class="faq-answer-inner">Unggah tersedia melalui halaman Unggah untuk akun yang memiliki izin. File yang diunggah user menjadi milik akun tersebut.</div>
                         </div>
                     </details>
 
@@ -256,17 +258,17 @@ if ($status === 'upload_success') {
                         <summary class="faq-question">
                             <span>Berapa batas ukuran unggahan?</span>
                             <span class="faq-icon" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Batas unggahan saat ini adalah <?= htmlspecialchars($effectiveUploadLimitLabel, ENT_QUOTES, 'UTF-8'); ?> per berkas.</div>
                         </div>
                     </details>
 
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Apakah file aman?</span>
                             <span class="faq-icon" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Setiap unggahan divalidasi sebelum disimpan, lalu diproses lewat backend sesuai role akun.</div>
                         </div>
@@ -296,7 +298,9 @@ if ($status === 'upload_success') {
                             <div class="footer-column">
                                 <h4>Bantuan</h4>
                                 <div class="footer-links">
-                                    <a href="#upload-panel">Upload</a>
+                                    <?php if (authCanUpload($currentUser)): ?>
+                                        <a href="dashboard-upload.php">Unggah</a>
+                                    <?php endif; ?>
                                     <a href="#faq">FAQ</a>
                                 </div>
                             </div>
@@ -315,7 +319,9 @@ if ($status === 'upload_success') {
 
                         <div class="footer-policy-links">
                             <a href="#files">Berkas</a>
-                            <a href="#upload-panel">Upload</a>
+                            <?php if (authCanUpload($currentUser)): ?>
+                                <a href="dashboard-upload.php">Unggah</a>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

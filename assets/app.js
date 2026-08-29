@@ -12,6 +12,7 @@
     const previewName = document.getElementById('preview-name');
     const previewDetails = document.getElementById('preview-details');
     const clearButton = document.getElementById('clear-file');
+    const uploadButton = document.getElementById('upload-button');
     const maxFileBytes = Number.parseInt(fileInput?.dataset.maxFileBytes || '', 10) || MAX_FALLBACK_FILE_BYTES;
     const maxFileLabel = fileInput?.dataset.maxFileLabel || '2 MB';
     const allowedFileTypes = fileInput?.dataset.allowedFileTypes || '';
@@ -80,6 +81,7 @@
         fileChip.textContent = 'Belum ada berkas yang dipilih';
         previewName.textContent = 'Belum ada berkas yang dipilih';
         previewDetails.textContent = 'Ukuran dan jenis berkas akan tampil di sini.';
+        previewDetails.classList.remove('is-error');
         previewImage.hidden = true;
         previewIcon.hidden = true;
         previewFile.hidden = true;
@@ -100,12 +102,8 @@
         previewEmpty.hidden = true;
         previewFile.hidden = false;
 
-        if (file.size > maxUploadSize) {
-            const message = 'Ukuran berkas melebihi batas maksimal 20 MB.';
-            fileInput.setCustomValidity(message);
-            previewDetails.textContent = message;
-            previewDetails.classList.add('is-error');
-        }
+        previewDetails.classList.remove('is-error');
+        fileInput.setCustomValidity('');
 
         if (objectUrl) {
             URL.revokeObjectURL(objectUrl);
@@ -123,12 +121,16 @@
         }
 
         if (!isFileWithinLimit(file)) {
+            fileInput.setCustomValidity(`Ukuran berkas melebihi batas ${maxFileLabel}.`);
+            previewDetails.classList.add('is-error');
             setUploadFeedback(`File ini terlalu besar. Pilih file berukuran ${maxFileLabel} atau lebih kecil.`, 'error');
             previewDetails.textContent = `${formatBytes(file.size)} • Melebihi batas ${maxFileLabel}`;
             return;
         }
 
         if (!isFileTypeAllowed(file)) {
+            fileInput.setCustomValidity(`Jenis file tidak didukung. Format yang diizinkan: ${allowedFileTypes}.`);
+            previewDetails.classList.add('is-error');
             setUploadFeedback(`Jenis file tidak didukung. Format yang diizinkan: ${allowedFileTypes}.`, 'error');
             previewDetails.textContent = `${formatBytes(file.size)} • Jenis file tidak didukung`;
             return;
@@ -201,10 +203,12 @@
         resetPreview();
     }
 
-    uploadForm.addEventListener('submit', () => {
-        uploadButton.disabled = true;
-        uploadButton.textContent = 'Mengunggah…';
-    });
+    if (uploadForm && uploadButton) {
+        uploadForm.addEventListener('submit', () => {
+            uploadButton.disabled = true;
+            uploadButton.textContent = 'Mengunggah…';
+        });
+    }
 
     const filePreviewImages = document.querySelectorAll('.file-preview');
     if (filePreviewImages.length > 0) {
