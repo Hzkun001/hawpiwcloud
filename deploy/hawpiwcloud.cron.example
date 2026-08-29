@@ -1,0 +1,15 @@
+# Install with: crontab deploy/hawpiwcloud.cron.example
+# Shared hosting often blocks shell scripts. Use this file only on a server
+# that allows cron plus CLI execution. For web-only hosting, use the dashboard
+# backup mode with BACKUP_DATABASE_DRIVER=json and BACKUP_COMPRESSION_FORMAT=zip.
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Daily full backup at 02:15.
+15 2 * * * /usr/local/sbin/hawpiwcloud-backup >> /var/log/hawpiwcloud/cron.log 2>&1
+
+# Purge Trash older than 30 days at 03:15. Every file is archived before unlink.
+15 3 * * * /usr/local/sbin/hawpiwcloud-backup purge-trash >> /var/log/hawpiwcloud/cron.log 2>&1
+
+# Apply daily, weekly, and monthly restore-point retention at 04:15.
+15 4 * * * /usr/local/sbin/hawpiwcloud-backup retention >> /var/log/hawpiwcloud/cron.log 2>&1

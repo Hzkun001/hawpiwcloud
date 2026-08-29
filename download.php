@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . DIRECTORY_SEPARATOR . 'bootstrap.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'auth.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'storage.php';
 
-requireAuthentication();
+$currentUser = authRequireLogin();
 
-$uploadDir = storageDirectory();
+$uploadDir = storageUploadDir();
 
 if (!isset($_GET['file']) || $_GET['file'] === '') {
     http_response_code(400);
@@ -23,11 +24,32 @@ if (!is_file($filePath) || !file_exists($filePath)) {
     exit;
 }
 
+$metadata = storageFileMetadata(storageReadMetadata($uploadDir), $fileName);
+$file = [
+    'name' => $fileName,
+    'owner' => $metadata['owner'],
+    'viewerAccess' => $metadata['viewerAccess'],
+    'uploadedByRole' => $metadata['uploadedByRole'],
+];
+
+if (!authCanDownloadFile($currentUser, $file)) {
+    authLogAudit('download', 'denied', $currentUser, ['file' => $fileName]);
+    http_response_code(403);
+    echo 'Anda tidak memiliki akses untuk mengunduh file ini.';
+    exit;
+}
+
 // Tentukan tipe MIME
-$finfo = finfo_open(FILEINFO_MIME_TYPE);
-$mimeType = $finfo ? finfo_file($finfo, $filePath) : 'application/octet-stream';
-if ($finfo) {
-    finfo_close($finfo);
+$mimeType = 'application/octet-stream';
+if (function_exists('finfo_open')) {
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    if ($finfo !== false) {
+        $detectedMimeType = finfo_file($finfo, $filePath);
+
+        if (is_string($detectedMimeType) && $detectedMimeType !== '') {
+            $mimeType = $detectedMimeType;
+        }
+    }
 }
 
 header('Content-Description: File Transfer');
@@ -39,4 +61,5 @@ header('Pragma: public');
 header('Expires: 0');
 
 readfile($filePath);
+authLogAudit('download', 'success', $currentUser, ['file' => $fileName, 'size' => filesize($filePath)]);
 exit;

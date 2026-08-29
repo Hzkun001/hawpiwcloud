@@ -1,0 +1,135 @@
+.backup-page {
+    background: #f4f7fc;
+    color: #0f172a;
+}
+
+.backup-shell {
+    width: min(1180px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 2rem 0 3rem;
+}
+
+.page-flow {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.backup-header,
+.backup-actions,
+.backup-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.backup-header {
+    justify-content: space-between;
+}
+
+.backup-actions {
+    justify-content: space-between;
+}
+
+.backup-header h1 {
+    margin: 0;
+    font-size: clamp(1.5rem, 2vw, 2rem);
+}
+
+.backup-header p,
+.backup-stat p,
+.backup-panel p {
+    margin: 0;
+}
+
+.backup-stats {
+    align-items: stretch;
+}
+
+.backup-stat {
+    flex: 1 1 190px;
+    padding: 1rem;
+}
+
+.backup-stat strong {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 1.25rem;
+}
+
+.backup-stat h2 {
+    margin: 0.3rem 0 0;
+    font-size: 1.25rem;
+}
+
+.backup-panel {
+    overflow: auto;
+    padding: 1rem;
+}
+
+.backup-panel h2 {
+    margin: 0 0 0.9rem;
+    font-size: 1rem;
+}
+
+.backup-panel td > form + form {
+    margin-top: 0.5rem;
+}
+
+.backup-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.backup-inline-action {
+    display: inline-flex;
+}
+
+.backup-checklist {
+    display: grid;
+    gap: 0.45rem;
+    margin: 1rem 0 0;
+    padding-left: 1.2rem;
+    color: #475569;
+}
+
+.backup-checklist code {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.backup-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.backup-badge--success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.backup-badge--failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+@media (max-width: 640px) {
+    .backup-shell {
+        width: min(100% - 1rem, 1180px);
+        padding-top: 1rem;
+    }
+
+    .backup-actions .button,
+    .form-row .button {
+        width: 100%;
+    }
+}

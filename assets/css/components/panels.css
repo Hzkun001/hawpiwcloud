@@ -1,0 +1,41 @@
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    box-shadow: 8px 8px 0 rgba(124, 58, 237, 0.72), var(--shadow);
+    overflow: hidden;
+}
+
+.panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.panel-head h2 {
+    font-family: var(--font-display);
+    margin: 0;
+    font-size: 1.08rem;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+}
+
+.panel-head span {
+    color: var(--muted);
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+}
+
+.files-panel .panel-head {
+    background: linear-gradient(180deg, #fbfcff, #f7f9fc);
+}
+
+.files-panel .panel-head span {
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.74rem;
+}
+
