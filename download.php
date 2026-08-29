@@ -1,7 +1,11 @@
 <?php
 declare(strict_types=1);
 
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'bootstrap.php';
+
+requireAuthentication();
+
+$uploadDir = storageDirectory();
 
 if (!isset($_GET['file']) || $_GET['file'] === '') {
     http_response_code(400);

@@ -8,6 +8,9 @@
     const previewName = document.getElementById('preview-name');
     const previewDetails = document.getElementById('preview-details');
     const clearButton = document.getElementById('clear-file');
+    const uploadForm = document.getElementById('upload-form');
+    const uploadButton = document.getElementById('upload-button');
+    const maxUploadSize = 20 * 1024 * 1024;
     let objectUrl = null;
 
     const formatBytes = (bytes) => {
@@ -29,6 +32,8 @@
         fileChip.textContent = 'Belum ada berkas yang dipilih';
         previewName.textContent = 'Belum ada berkas yang dipilih';
         previewDetails.textContent = 'Ukuran dan jenis berkas akan tampil di sini.';
+        previewDetails.classList.remove('is-error');
+        fileInput.setCustomValidity('');
         previewImage.style.display = 'none';
         previewIcon.style.display = 'none';
         previewImage.src = '';
@@ -41,10 +46,19 @@
             return;
         }
 
-        fileChip.innerHTML = `<strong>${file.name}</strong>`;
+        fileChip.textContent = file.name;
         previewName.textContent = file.name;
         previewDetails.textContent = `${formatBytes(file.size)} • ${file.type || 'Jenis berkas tidak dikenal'}`;
+        previewDetails.classList.remove('is-error');
+        fileInput.setCustomValidity('');
         previewEmpty.style.display = 'none';
+
+        if (file.size > maxUploadSize) {
+            const message = 'Ukuran berkas melebihi batas maksimal 20 MB.';
+            fileInput.setCustomValidity(message);
+            previewDetails.textContent = message;
+            previewDetails.classList.add('is-error');
+        }
 
         if (objectUrl) {
             URL.revokeObjectURL(objectUrl);
@@ -99,35 +113,9 @@
         showPreview(droppedFile);
     });
 
-    const faqItems = document.querySelectorAll('[data-faq] .faq-item');
-
-    faqItems.forEach((item) => {
-        const questionButton = item.querySelector('.faq-question');
-        const answer = item.querySelector('.faq-answer');
-
-        if (!questionButton || !answer) {
-            return;
-        }
-
-        questionButton.addEventListener('click', () => {
-            const isOpen = item.classList.contains('is-open');
-
-            faqItems.forEach((otherItem) => {
-                const otherButton = otherItem.querySelector('.faq-question');
-
-                otherItem.classList.remove('is-open');
-                if (otherButton) {
-                    otherButton.setAttribute('aria-expanded', 'false');
-                }
-            });
-
-            if (!isOpen) {
-                item.classList.add('is-open');
-                questionButton.setAttribute('aria-expanded', 'true');
-            } else {
-                questionButton.setAttribute('aria-expanded', 'false');
-            }
-        });
+    uploadForm.addEventListener('submit', () => {
+        uploadButton.disabled = true;
+        uploadButton.textContent = 'Mengunggah…';
     });
 
     resetPreview();

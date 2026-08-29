@@ -1,20 +1,11 @@
 <?php
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'bootstrap.php';
 
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+requireAuthentication();
 
-function redirectWithStatus(string $status): void
-{
-    header('Location: index.php?status=' . rawurlencode($status));
-    exit;
-}
-
-function isValidCsrfToken(?string $token): bool
-{
-    return isset($_SESSION['csrf_token']) && is_string($_SESSION['csrf_token']) && $token !== null && hash_equals($_SESSION['csrf_token'], $token);
-}
+$uploadDir = storageDirectory();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectWithStatus('error');

@@ -135,6 +135,15 @@ body::before {
     color: var(--indigo-dark);
 }
 
+.logout-form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.logout-form button {
+    cursor: pointer;
+}
+
 .nav-cta {
     min-height: 40px;
     padding: 0 16px;
@@ -321,6 +330,11 @@ h1 {
     cursor: pointer;
 }
 
+.dropzone:focus-within {
+    outline: 3px solid rgba(124, 58, 237, 0.3);
+    outline-offset: 4px;
+}
+
 .dropzone-content {
     display: grid;
     justify-items: center;
@@ -366,11 +380,8 @@ h1 {
     border: 1px solid #d7e0ec;
     color: var(--slate);
     font-size: 0.92rem;
+    font-weight: 700;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
-}
-
-.file-chip strong {
-    color: var(--text);
 }
 
 .preview-panel {
@@ -492,6 +503,11 @@ h1 {
     letter-spacing: -0.005em;
 }
 
+#preview-details.is-error {
+    color: #b42318;
+    font-weight: 700;
+}
+
 .upload-actions {
     display: flex;
     gap: 12px;
@@ -548,6 +564,13 @@ h1 {
     box-shadow: 0 18px 40px rgba(139, 92, 246, 0.38), 0 0 26px rgba(196, 181, 253, 0.45);
 }
 
+.primary-button:disabled {
+    cursor: wait;
+    opacity: 0.72;
+    transform: none;
+    box-shadow: none;
+}
+
 .primary-button::before {
     content: '';
     position: absolute;
@@ -583,6 +606,11 @@ h1 {
     overflow-x: auto;
     padding: 0 12px 12px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(248, 250, 252, 0.92));
+}
+
+.table-wrap:focus-visible {
+    outline: 3px solid rgba(124, 58, 237, 0.3);
+    outline-offset: 3px;
 }
 
 table {
@@ -1267,6 +1295,11 @@ tbody tr:first-child td {
     font-size: 1.02rem;
     font-weight: 900;
     letter-spacing: -0.035em;
+    list-style: none;
+}
+
+.faq-question::-webkit-details-marker {
+    display: none;
 }
 
 .faq-question span:first-child {
@@ -1285,7 +1318,7 @@ tbody tr:first-child td {
     transition: transform 220ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
 }
 
-.faq-item.is-open .faq-icon {
+.faq-item[open] .faq-icon {
     transform: rotate(45deg);
     background: rgba(124, 58, 237, 0.12);
     color: #7c3aed;
@@ -1293,11 +1326,7 @@ tbody tr:first-child td {
 }
 
 .faq-answer {
-    max-height: 0;
     overflow: hidden;
-    opacity: 0;
-    transform: translateY(-4px);
-    transition: max-height 320ms ease, opacity 240ms ease, transform 240ms ease;
 }
 
 .faq-answer-inner {
@@ -1307,13 +1336,7 @@ tbody tr:first-child td {
     letter-spacing: -0.005em;
 }
 
-.faq-item.is-open .faq-answer {
-    max-height: 320px;
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.faq-item.is-open {
+.faq-item[open] {
     border-color: rgba(124, 58, 237, 0.92);
 }
 
@@ -1329,6 +1352,68 @@ tbody tr:first-child td {
     text-align: center;
     line-height: 1.65;
     letter-spacing: -0.005em;
+}
+
+.login-shell {
+    position: relative;
+    width: min(100% - 32px, 480px);
+    min-height: 100vh;
+    margin: 0 auto;
+    display: grid;
+    align-content: center;
+    gap: 28px;
+    padding: 32px 0;
+}
+
+.login-shell > .brand {
+    justify-self: center;
+}
+
+.login-panel .panel-head {
+    padding: 28px 30px 22px;
+}
+
+.login-panel .panel-head h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    line-height: 1.2;
+    letter-spacing: -0.04em;
+}
+
+.login-form {
+    display: grid;
+    gap: 14px;
+    padding: 28px 30px 32px;
+}
+
+.login-form label {
+    font-weight: 800;
+    color: var(--text);
+}
+
+.login-form input[type='password'] {
+    width: 100%;
+    min-height: 52px;
+    padding: 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    color: var(--text);
+    background: #fff;
+    outline: none;
+}
+
+.login-form input[type='password']:focus {
+    border-color: var(--indigo);
+    box-shadow: 0 0 0 4px var(--indigo-soft);
+}
+
+.login-error {
+    padding: 12px 14px;
+    border: 1px solid rgba(220, 38, 38, 0.18);
+    border-radius: 14px;
+    color: #7f1d1d;
+    background: var(--danger-soft);
 }
 
 @media (max-width: 860px) {
@@ -1618,5 +1703,16 @@ tbody tr:first-child td {
 
     .footer-policy-links {
         gap: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }

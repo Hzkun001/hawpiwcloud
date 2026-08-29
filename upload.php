@@ -1,15 +1,11 @@
 <?php
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'bootstrap.php';
 
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+requireAuthentication();
 
-function redirectWithStatus(string $status): void
-{
-    header('Location: index.php?status=' . rawurlencode($status));
-    exit;
-}
+$uploadDir = storageDirectory();
 
 function iniSizeToBytes(string $value): int
 {
@@ -37,46 +33,32 @@ function requestBodyExceededPostMaxSize(): bool
     return $contentLength > 0 && $postMaxSize > 0 && $contentLength > $postMaxSize;
 }
 
-function redirectWithSecurityError(): void
-{
-    header('Location: index.php?status=error_security');
-    exit;
-}
-
-function isValidCsrfToken(?string $token): bool
-{
-    return isset($_SESSION['csrf_token']) && is_string($_SESSION['csrf_token']) && $token !== null && hash_equals($_SESSION['csrf_token'], $token);
-}
-
-// Pastikan folder uploads ada
-if (!is_dir($uploadDir)) {
-    if (!mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
-        redirectWithStatus('error_permissions');
-    }
-}
-
-if (!is_writable($uploadDir)) {
-    redirectWithStatus('error_permissions');
-}
-
 // Validasi request
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirectWithStatus('error');
-}
-
-if (!isValidCsrfToken($_POST['csrf_token'] ?? null)) {
-    redirectWithSecurityError();
 }
 
 if (requestBodyExceededPostMaxSize()) {
     redirectWithStatus('error_size');
 }
 
-if (!isset($_FILES['fileToUpload'])) {
+if (!isValidCsrfToken($_POST['csrf_token'] ?? null)) {
+    redirectWithStatus('error_security');
+}
+
+if (!isset($_FILES['fileToUpload']) || !is_array($_FILES['fileToUpload'])) {
     redirectWithStatus('error_nofile');
 }
 
 $file = $_FILES['fileToUpload'];
+
+if (!isset($file['error'], $file['size'], $file['name'], $file['tmp_name'])
+    || !is_int($file['error'])
+    || !is_int($file['size'])
+    || !is_string($file['name'])
+    || !is_string($file['tmp_name'])) {
+    redirectWithStatus('error');
+}
 
 // Cek error upload
 if ($file['error'] !== UPLOAD_ERR_OK) {
@@ -103,19 +85,32 @@ if ($sanitizedFileName === null || $sanitizedFileName === '') {
     redirectWithStatus('error');
 }
 
-// Cegah file tertimpa: tambahkan timestamp jika nama sudah ada
+// Cadangkan nama secara atomik agar unggahan bersamaan tidak menimpa file.
 $targetPath = $uploadDir . $sanitizedFileName;
-if (file_exists($targetPath)) {
+$reservation = @fopen($targetPath, 'x');
+
+for ($attempt = 0; $reservation === false && $attempt < 10; $attempt++) {
     $fileInfo = pathinfo($sanitizedFileName);
     $nameOnly = $fileInfo['filename'] ?? 'file';
     $extension = isset($fileInfo['extension']) ? '.' . $fileInfo['extension'] : '';
-    $sanitizedFileName = $nameOnly . '_' . date('Ymd_His') . $extension;
-    $targetPath = $uploadDir . $sanitizedFileName;
+    $candidate = $nameOnly . '_' . bin2hex(random_bytes(8)) . $extension;
+    $targetPath = $uploadDir . $candidate;
+    $reservation = @fopen($targetPath, 'x');
+    if ($reservation !== false) {
+        $sanitizedFileName = $candidate;
+    }
 }
 
-// Pindahkan file ke folder uploads
+if ($reservation === false) {
+    redirectWithStatus('error');
+}
+
+fclose($reservation);
+
+// Pindahkan file ke penyimpanan privat.
 if (move_uploaded_file($file['tmp_name'], $targetPath)) {
     redirectWithStatus('upload_success');
 }
 
+unlink($targetPath);
 redirectWithStatus('error_permissions');

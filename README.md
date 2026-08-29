@@ -1,109 +1,111 @@
 # hawpiwcloud
 
-hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP untuk mengunggah, melihat pratinjau, mengunduh, dan menghapus file langsung dari browser. Aplikasi ini tidak memakai database; semua berkas disimpan di folder `uploads/` dan dikelola dari satu dasbor yang responsif dan bersih.
-
-## Fitur
-
-- Unggah berkas melalui form atau drag and drop.
-- Pratinjau otomatis untuk gambar sebelum unggah.
-- Daftar berkas tersimpan dengan informasi ukuran dan waktu perubahan.
-- Unduh berkas langsung dari tabel daftar file.
-- Hapus berkas dengan konfirmasi sebelum tindakan dijalankan.
-- Proteksi CSRF pada form unggah dan hapus.
-- Validasi ukuran unggahan dengan batas maksimal 20 MB per berkas.
+hawpiwcloud adalah aplikasi penyimpanan berkas sederhana berbasis PHP. Satu kata sandi bersama melindungi fitur unggah, daftar, unduh, dan hapus. Berkas disimpan di luar document root dan hanya dapat diambil melalui handler unduhan yang sudah diautentikasi.
 
 ## Kebutuhan
 
-- PHP 8.0 atau lebih baru.
-- Web server seperti Apache, Nginx, XAMPP, Laragon, atau PHP built-in server.
-- Folder `uploads/` harus punya izin tulis.
+- PHP 8.0 atau lebih baru dengan ekstensi Fileinfo.
+- HTTPS pada deployment publik.
+- Direktori data yang writable di luar document root.
+- Dua environment variable: `HAWPIWCLOUD_DATA_DIR` dan `HAWPIWCLOUD_PASSWORD_HASH`.
 
-## Cara Menjalankan
+Tidak ada database, framework, Composer, atau paket JavaScript.
 
-### Opsi 1: PHP Built-in Server
+## Konfigurasi
 
-Jalankan perintah berikut dari root proyek:
+1. Buat direktori privat beserta subdirektori `files/`. Lokasinya tidak boleh berada di dalam document root aplikasi.
+
+   ```bash
+   mkdir -p /home/account/hawpiwcloud-data/files
+   chmod 700 /home/account/hawpiwcloud-data /home/account/hawpiwcloud-data/files
+   ```
+
+2. Buat hash kata sandi. Perintah berikut membaca kata sandi dari standard input dan hanya mencetak hash:
+
+   ```bash
+   php -r 'echo password_hash(trim(fgets(STDIN)), PASSWORD_DEFAULT), PHP_EOL;'
+   ```
+
+3. Atur environment variable melalui panel hosting, konfigurasi virtual host, atau service manager:
+
+   ```text
+   HAWPIWCLOUD_DATA_DIR=/home/account/hawpiwcloud-data
+   HAWPIWCLOUD_PASSWORD_HASH=<hasil password_hash>
+   ```
+
+   Jangan simpan kata sandi, hash, atau file `.env` di repository maupun document root.
+
+4. Untuk pengembangan lokal, ekspor kedua nilai tersebut lalu jalankan server dari root proyek:
+
+   ```bash
+   php -S localhost:8000
+   ```
+
+Aplikasi mengembalikan HTTP 503 jika konfigurasi data atau hash tidak aman. Tidak ada fallback ke folder publik.
+
+## Migrasi dari Versi Lama
+
+Lakukan migrasi dalam masa henti singkat agar tidak ada unggahan baru selama pemindahan.
+
+1. Cadangkan folder publik `uploads/` beserta metadata dan izin file.
+2. Pindahkan hanya berkas pengguna ke `$HAWPIWCLOUD_DATA_DIR/files/`; jangan pindahkan `.gitkeep`.
+3. Bandingkan jumlah dan checksum berkas sumber dengan tujuan.
+4. Hapus folder publik `uploads/` setelah verifikasi berhasil.
+5. Jalankan pemeriksaan pada bagian Pengujian sebelum membuka kembali aplikasi.
+
+Untuk rollback, pulihkan kode lama dan salinan cadangan ke lokasi semula. Jangan gunakan direktori publik sebagai fallback pada kode baru.
+
+## Alur
+
+1. Pengguna membuka `login.php` dan memasukkan kata sandi bersama.
+2. PHP memverifikasi hash, mengganti session ID, lalu membuka dashboard.
+3. `index.php` membaca daftar berkas dari direktori privat.
+4. `upload.php`, `download.php`, dan `delete.php` memakai autentikasi, CSRF untuk mutasi, dan path privat yang sama.
+5. Sesi berakhir setelah 30 menit tanpa aktivitas atau ketika pengguna menekan Keluar.
+
+Lima kegagalan login dari satu alamat jaringan dalam 15 menit dibatasi sementara. Implementasi berbasis file lock ini ditujukan untuk satu server; gunakan rate limiter bersama jika aplikasi dipindahkan ke beberapa node.
+
+## Batas Unggahan
+
+- `upload_max_filesize = 20M`
+- `post_max_size = 24M`
+- Validasi aplikasi: 20 MB per berkas
+
+Semua jenis berkas dapat disimpan karena direktori data tidak dapat diakses langsung dari web. Nama berkas dibersihkan, dan nama yang sama mendapat suffix acak tanpa menimpa berkas lama.
+
+## Pengujian
+
+Jalankan lint dan smoke test dari root proyek:
 
 ```bash
-php -S localhost:8000
+for file in *.php; do php -l "$file"; done
+bash tests/smoke.sh
 ```
 
-Lalu buka:
+Smoke test memakai direktori sementara, PHP built-in server, dan `curl`, lalu membersihkan seluruh data uji secara otomatis.
 
-```text
-http://localhost:8000
-```
-
-### Opsi 2: Apache/Nginx
-
-1. Arahkan document root ke folder proyek ini.
-2. Pastikan PHP aktif di server.
-3. Pastikan folder `uploads/` dapat ditulis oleh server.
-4. Buka `index.php` melalui browser.
-
-## Cara Menggunakan
-
-1. Buka halaman utama aplikasi.
-2. Pilih file melalui area unggah atau seret file ke dropzone.
-3. Cek pratinjau file di panel kanan.
-4. Tekan tombol unggah untuk menyimpan file.
-5. File yang berhasil diunggah akan muncul di tabel berkas tersimpan.
-6. Gunakan tombol unduh untuk mengambil file atau tombol hapus untuk menghapusnya.
-
-## Struktur Proyek
+## Struktur
 
 ```text
 cloud-storage/
+├── bootstrap.php
+├── login.php
 ├── index.php
 ├── upload.php
 ├── download.php
 ├── delete.php
 ├── assets/
-│   ├── app.js
-│   └── styles.css
-├── uploads/
-└── .user.ini
+├── tests/
+├── spec.md
+├── plan.md
+└── tasks.md
 ```
 
-## Catatan Teknis
+## Batasan
 
-- Semua nama file dibersihkan agar karakter berbahaya diganti dengan garis bawah.
-- Jika nama file sudah ada, sistem akan menambahkan timestamp agar file lama tidak tertimpa.
-- File yang diunggah disimpan langsung ke folder `uploads/` tanpa database.
-- Pratinjau gambar ditangani di sisi frontend, sedangkan file non-gambar tetap bisa diunggah dan dikelola.
-
-## Batas Unggahan
-
-Konfigurasi saat ini menggunakan batas berikut:
-
-- `upload_max_filesize = 20M`
-- `post_max_size = 24M`
-- Batas validasi aplikasi: 20 MB per file
-
-## Tampilan dan Interaksi
-
-Antarmuka aplikasi menggunakan gaya dasbor modern dengan:
-
-- Hero section dan navigasi yang jelas.
-- Panel unggah dengan area drag and drop.
-- Tabel berkas tersimpan.
-- Bagian FAQ dan penjelasan alur penggunaan.
-
-## Keamanan
-
-- Form unggah dan hapus memakai token CSRF.
-- File diakses melalui skrip unduh agar nama file divalidasi.
-- Operasi hapus hanya menerima request `POST`.
-
-## Pengembangan Lanjutan
-
-Jika ingin mengembangkan proyek ini, beberapa ide berikut bisa ditambahkan:
-
-- Filter tipe file yang diizinkan.
-- Paging atau pencarian pada daftar file.
-- Preview khusus untuk PDF dan dokumen office.
-- Penyimpanan metadata file ke database.
-- Autentikasi pengguna untuk membatasi akses.
+- Satu kata sandi memberi akses penuh ke seluruh berkas dan operasi.
+- Tidak ada akun per pengguna, pemulihan kata sandi, audit log, atau versioning.
+- Penyimpanan tetap bergantung pada kapasitas dan backup server tujuan.
 
 ## Lisensi
 

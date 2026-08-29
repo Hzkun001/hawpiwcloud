@@ -1,15 +1,12 @@
 <?php
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'bootstrap.php';
 
-if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_SESSION['csrf_token'] === '') {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
+requireAuthentication();
 
-$csrfToken = $_SESSION['csrf_token'];
-
-$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR;
+$csrfToken = csrfToken();
+$uploadDir = storageDirectory();
 
 $files = [];
 if (is_dir($uploadDir)) {
@@ -76,7 +73,7 @@ if ($status === 'upload_success') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -97,11 +94,15 @@ if ($status === 'upload_success') {
                 <span class="brand-name">hawpiwcloud</span>
             </a>
 
-            <nav class="site-nav" aria-label="Primary">
+            <nav class="site-nav" aria-label="Navigasi utama">
                 <a href="#top">Beranda</a>
                 <a href="#how-it-works">Cara Kerja</a>
-                <a href="#files-title">Tentang</a>
-                <a class="action-button nav-cta" href="#upload-panel">Masuk</a>
+                <a href="#files-title">Berkas</a>
+                <form class="logout-form" action="login.php" method="post">
+                    <input type="hidden" name="action" value="logout">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                    <button class="action-button nav-cta" type="submit">Keluar</button>
+                </form>
             </nav>
         </header>
 
@@ -199,7 +200,7 @@ if ($status === 'upload_success') {
 
                                 <div class="upload-actions">
                                     <button class="secondary-button" type="button" id="clear-file">Atur Ulang</button>
-                                    <button class="primary-button" type="submit">
+                                    <button class="primary-button" id="upload-button" type="submit">
                                         <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                             <path d="M12 16V4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
                                             <path d="m7.5 8.5 4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
@@ -223,7 +224,7 @@ if ($status === 'upload_success') {
                 </div>
 
                 <?php if (count($files) > 0): ?>
-                    <div class="table-wrap">
+                    <div class="table-wrap" tabindex="0" role="region" aria-label="Daftar berkas tersimpan">
                         <table>
                             <thead>
                                 <tr>
@@ -329,10 +330,10 @@ if ($status === 'upload_success') {
                     </div>
                     <div>
                         <h3 id="safety-title">Keamanan Penyimpanan Awan</h3>
-                        <p>Setiap unggahan divalidasi sebelum disimpan. Aplikasi memeriksa jenis berkas, ukuran, dan izin tujuan agar penyimpanan tetap stabil dan aman untuk penggunaan sehari-hari.</p>
+                        <p>Setiap unggahan divalidasi sebelum disimpan. Aplikasi memeriksa struktur permintaan, ukuran berkas, dan izin tujuan agar penyimpanan tetap stabil untuk penggunaan sehari-hari.</p>
                         <div class="safety-list">
                             <span>Divalidasi sebelum disimpan</span>
-                            <span>Pratinjau gambar dan dokumen</span>
+                            <span>Pratinjau gambar dan informasi berkas</span>
                             <span>Batas ukuran ditegakkan</span>
                             <span>Kontrol unduh dan hapus</span>
                         </div>
@@ -353,66 +354,66 @@ if ($status === 'upload_success') {
                     <p>Berikut jawaban singkat untuk hal-hal yang paling sering ditanyakan tentang hawpiwcloud dan cara penggunaannya.</p>
                 </div>
 
-                <div class="faq-list" data-faq>
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                <div class="faq-list">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Bagaimana cara mengunggah berkas?</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Klik area unggah, pilih berkas dari perangkat Anda, periksa pratinjau di panel kanan, lalu tekan tombol <strong>Unggah Berkas</strong>.</div>
                         </div>
-                    </article>
+                    </details>
 
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Format berkas apa yang didukung?</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Pada mode saat ini, semua jenis file bisa diunggah. Gambar tetap mendapat pratinjau visual, sementara file lain tampil sebagai nama dan ikon berkas.</div>
                         </div>
-                    </article>
+                    </details>
 
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Apakah saya bisa melihat pratinjau sebelum mengunggah?</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Bisa. Gambar akan ditampilkan sebagai thumbnail, sedangkan jenis berkas lain akan tampil sebagai ikon beserta nama dan ukurannya.</div>
                         </div>
-                    </article>
+                    </details>
 
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Berapa batas ukuran unggahan?</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Batas unggahan saat ini adalah 20 MB per berkas. Jika melebihi batas ini, sistem akan menampilkan pesan kesalahan agar Anda bisa memilih berkas yang lebih kecil.</div>
                         </div>
-                    </article>
+                    </details>
 
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Apakah berkas saya aman?</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
-                            <div class="faq-answer-inner">Setiap unggahan divalidasi sebelum disimpan. Sistem mengecek izin folder, ukuran berkas, dan proses unggah agar tetap stabil dan aman digunakan.</div>
+                            <div class="faq-answer-inner">Setiap unggahan divalidasi sebelum disimpan. Sistem mengecek struktur permintaan, izin folder, ukuran berkas, dan proses unggah sebelum menyimpannya di direktori privat.</div>
                         </div>
-                    </article>
+                    </details>
 
-                    <article class="faq-item">
-                        <button class="faq-question" type="button" aria-expanded="false">
+                    <details class="faq-item">
+                        <summary class="faq-question">
                             <span>Bagaimana cara menghapus berkas?</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
+                        </summary>
                         <div class="faq-answer">
                             <div class="faq-answer-inner">Pada tabel berkas, klik ikon hapus di kolom Aksi. Sistem akan meminta konfirmasi sebelum berkas benar-benar dihapus dari folder penyimpanan.</div>
                         </div>
-                    </article>
+                    </details>
                 </div>
 
                 <p class="faq-footnote">Jika pertanyaan Anda belum terjawab, Anda bisa langsung mencoba unggah satu berkas dan melihat pratinjau serta respons sistem secara langsung.</p>
@@ -438,7 +439,7 @@ if ($status === 'upload_success') {
                                 <h4>Produk</h4>
                                 <div class="footer-links">
                                     <a href="#upload-panel">Unggah Berkas</a>
-                                    <a href="#files">Daftar Berkas</a>
+                                    <a href="#files-title">Daftar Berkas</a>
                                     <a href="#how-it-works">Cara Kerja</a>
                                     <a href="#faq">FAQ</a>
                                 </div>
@@ -458,7 +459,7 @@ if ($status === 'upload_success') {
                                 <h4>Sumber Daya</h4>
                                 <div class="footer-links">
                                     <a href="#how-it-works">Panduan</a>
-                                    <a href="#files">Lihat Berkas</a>
+                                    <a href="#files-title">Lihat Berkas</a>
                                     <a href="#upload-panel">Pratinjau Berkas</a>
                                     <a href="#faq">Bantuan</a>
                                 </div>
