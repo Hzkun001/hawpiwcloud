@@ -272,13 +272,17 @@ function authLogAudit(string $operation, string $status, ?array $user = null, ar
         return;
     }
 
-    $logger->audit(
-        $operation,
-        $status,
-        (string) ($user['username'] ?? 'guest'),
-        (string) ($_SERVER['REMOTE_ADDR'] ?? 'web'),
-        $context
-    );
+    try {
+        $logger->audit(
+            $operation,
+            $status,
+            (string) ($user['username'] ?? 'guest'),
+            (string) ($_SERVER['REMOTE_ADDR'] ?? 'web'),
+            $context
+        );
+    } catch (Throwable) {
+        // Audit logging must not make authentication unavailable.
+    }
 }
 
 function authLogout(): void
